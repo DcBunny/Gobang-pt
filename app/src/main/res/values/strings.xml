@@ -16,4 +16,12 @@
     <string name="cancel">取消</string>
     <string name="move_count">已落子 %1$d 手</string>
     <string name="board_description">十五路五子棋棋盘，点击交叉点落子</string>
+    <string name="review_board_description">十五路五子棋复盘棋盘，当前为只读模式</string>
+    <string name="review">复盘</string>
+    <string name="review_progress">复盘进度 %1$d/%2$d</string>
+    <string name="review_initial_position">开局空棋盘，点击“下一手”开始回看</string>
+    <string name="review_move_description">第 %1$d 手 · %2$s落子：第 %3$d 行，第 %4$d 列</string>
+    <string name="previous_move">上一手</string>
+    <string name="next_move">下一手</string>
+    <string name="exit_review">退出复盘</string>
 </resources>

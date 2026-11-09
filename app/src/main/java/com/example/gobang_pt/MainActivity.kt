@@ -93,9 +93,17 @@ class MainActivity : ComponentActivity() {
 fun GobangScreen() {
     var game by rememberSaveable(stateSaver = gameSaver) { mutableStateOf(GobangGame()) }
     var showRestartConfirmation by remember { mutableStateOf(false) }
+    var isReviewing by rememberSaveable { mutableStateOf(false) }
+    var reviewMoveCount by rememberSaveable { mutableStateOf(0) }
+    val currentReviewMoveCount = reviewMoveCount.coerceIn(0, game.moves.size)
+    val displayedGame = if (isReviewing) game.replayTo(currentReviewMoveCount) else game
 
     val onRestart = {
         if (game.moves.isEmpty()) game = GobangGame() else showRestartConfirmation = true
+    }
+    val onStartReview = {
+        reviewMoveCount = 0
+        isReviewing = true
     }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -106,17 +114,31 @@ fun GobangScreen() {
         ) {
             if (maxWidth >= 700.dp && maxWidth > maxHeight) {
                 ExpandedGobangLayout(
-                    game = game,
+                    game = displayedGame,
+                    totalMoveCount = game.moves.size,
+                    isReviewing = isReviewing,
+                    reviewMoveCount = currentReviewMoveCount,
                     onPositionClick = { position -> game = game.play(position) },
                     onUndo = { game = game.undo() },
                     onRestart = onRestart,
+                    onStartReview = onStartReview,
+                    onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
+                    onNextMove = { reviewMoveCount = currentReviewMoveCount + 1 },
+                    onExitReview = { isReviewing = false },
                 )
             } else {
                 CompactGobangLayout(
-                    game = game,
+                    game = displayedGame,
+                    totalMoveCount = game.moves.size,
+                    isReviewing = isReviewing,
+                    reviewMoveCount = currentReviewMoveCount,
                     onPositionClick = { position -> game = game.play(position) },
                     onUndo = { game = game.undo() },
                     onRestart = onRestart,
+                    onStartReview = onStartReview,
+                    onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
+                    onNextMove = { reviewMoveCount = currentReviewMoveCount + 1 },
+                    onExitReview = { isReviewing = false },
                 )
             }
         }
@@ -150,9 +172,16 @@ fun GobangScreen() {
 @Composable
 private fun CompactGobangLayout(
     game: GobangGame,
+    totalMoveCount: Int,
+    isReviewing: Boolean,
+    reviewMoveCount: Int,
     onPositionClick: (Position) -> Unit,
     onUndo: () -> Unit,
     onRestart: () -> Unit,
+    onStartReview: () -> Unit,
+    onPreviousMove: () -> Unit,
+    onNextMove: () -> Unit,
+    onExitReview: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -166,8 +195,22 @@ private fun CompactGobangLayout(
             GameHeader()
             PlayerCards(Modifier.padding(top = 16.dp), game)
             GameStatus(game, Modifier.padding(vertical = 16.dp))
-            GobangBoard(game, onPositionClick)
-            GameActions(game, onUndo, onRestart, Modifier.padding(top = 20.dp))
+            if (isReviewing) {
+                ReviewStatus(game, reviewMoveCount, totalMoveCount, Modifier.padding(bottom = 12.dp))
+            }
+            GobangBoard(game, onPositionClick, isInteractive = !isReviewing)
+            if (isReviewing) {
+                ReviewActions(
+                    reviewMoveCount = reviewMoveCount,
+                    totalMoveCount = totalMoveCount,
+                    onPreviousMove = onPreviousMove,
+                    onNextMove = onNextMove,
+                    onExitReview = onExitReview,
+                    modifier = Modifier.padding(top = 20.dp),
+                )
+            } else {
+                GameActions(game, onUndo, onRestart, onStartReview, Modifier.padding(top = 20.dp))
+            }
             MoveCount(game.moves.size, Modifier.padding(top = 12.dp, bottom = 8.dp))
         }
     }
@@ -176,9 +219,16 @@ private fun CompactGobangLayout(
 @Composable
 private fun ExpandedGobangLayout(
     game: GobangGame,
+    totalMoveCount: Int,
+    isReviewing: Boolean,
+    reviewMoveCount: Int,
     onPositionClick: (Position) -> Unit,
     onUndo: () -> Unit,
     onRestart: () -> Unit,
+    onStartReview: () -> Unit,
+    onPreviousMove: () -> Unit,
+    onNextMove: () -> Unit,
+    onExitReview: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -196,6 +246,7 @@ private fun ExpandedGobangLayout(
             GobangBoard(
                 game = game,
                 onPositionClick = onPositionClick,
+                isInteractive = !isReviewing,
                 modifier = Modifier.size(minOf(maxWidth, maxHeight)),
             )
         }
@@ -208,7 +259,18 @@ private fun ExpandedGobangLayout(
             GameHeader()
             PlayerCards(Modifier.padding(top = 24.dp), game)
             GameStatus(game, Modifier.padding(vertical = 20.dp))
-            GameActions(game, onUndo, onRestart)
+            if (isReviewing) {
+                ReviewStatus(game, reviewMoveCount, totalMoveCount, Modifier.padding(bottom = 16.dp))
+                ReviewActions(
+                    reviewMoveCount = reviewMoveCount,
+                    totalMoveCount = totalMoveCount,
+                    onPreviousMove = onPreviousMove,
+                    onNextMove = onNextMove,
+                    onExitReview = onExitReview,
+                )
+            } else {
+                GameActions(game, onUndo, onRestart, onStartReview)
+            }
             MoveCount(game.moves.size, Modifier.padding(top = 12.dp, bottom = 8.dp))
         }
     }
@@ -253,25 +315,103 @@ private fun GameStatus(game: GobangGame, modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun ReviewStatus(
+    game: GobangGame,
+    reviewMoveCount: Int,
+    totalMoveCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = stringResource(R.string.review_progress, reviewMoveCount, totalMoveCount),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.testTag("review_progress"),
+        )
+        val lastMove = game.moves.lastOrNull()
+        Text(
+            text = if (lastMove == null) {
+                stringResource(R.string.review_initial_position)
+            } else {
+                stringResource(
+                    R.string.review_move_description,
+                    reviewMoveCount,
+                    stringResource(if (lastMove.stone == Stone.BLACK) R.string.black else R.string.white),
+                    lastMove.position.row + 1,
+                    lastMove.position.column + 1,
+                )
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp).testTag("review_move_description"),
+        )
+    }
+}
+
+@Composable
 private fun GameActions(
     game: GobangGame,
     onUndo: () -> Unit,
     onRestart: () -> Unit,
+    onStartReview: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(
-            onClick = onUndo,
-            enabled = game.moves.isNotEmpty(),
-            modifier = Modifier.testTag("undo_button"),
-        ) {
-            Text(stringResource(R.string.undo))
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = onUndo,
+                enabled = game.moves.isNotEmpty(),
+                modifier = Modifier.testTag("undo_button"),
+            ) {
+                Text(stringResource(R.string.undo))
+            }
+            Button(
+                onClick = onRestart,
+                modifier = Modifier.testTag("restart_button"),
+            ) {
+                Text(stringResource(R.string.restart))
+            }
         }
-        Button(
-            onClick = onRestart,
-            modifier = Modifier.testTag("restart_button"),
+        OutlinedButton(
+            onClick = onStartReview,
+            enabled = game.moves.isNotEmpty(),
+            modifier = Modifier.padding(top = 8.dp).testTag("review_button"),
         ) {
-            Text(stringResource(R.string.restart))
+            Text(stringResource(R.string.review))
+        }
+    }
+}
+
+@Composable
+private fun ReviewActions(
+    reviewMoveCount: Int,
+    totalMoveCount: Int,
+    onPreviousMove: () -> Unit,
+    onNextMove: () -> Unit,
+    onExitReview: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = onPreviousMove,
+                enabled = reviewMoveCount > 0,
+                modifier = Modifier.testTag("previous_move_button"),
+            ) {
+                Text(stringResource(R.string.previous_move))
+            }
+            Button(
+                onClick = onNextMove,
+                enabled = reviewMoveCount < totalMoveCount,
+                modifier = Modifier.testTag("next_move_button"),
+            ) {
+                Text(stringResource(R.string.next_move))
+            }
+        }
+        TextButton(
+            onClick = onExitReview,
+            modifier = Modifier.padding(top = 4.dp).testTag("exit_review_button"),
+        ) {
+            Text(stringResource(R.string.exit_review))
         }
     }
 }
@@ -327,9 +467,12 @@ private fun PlayerCard(
 private fun GobangBoard(
     game: GobangGame,
     onPositionClick: (Position) -> Unit,
+    isInteractive: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val boardDescription = stringResource(R.string.board_description)
+    val boardDescription = stringResource(
+        if (isInteractive) R.string.board_description else R.string.review_board_description,
+    )
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -338,13 +481,15 @@ private fun GobangBoard(
             .background(BoardColor)
             .semantics { contentDescription = boardDescription }
             .testTag("gobang_board")
-            .pointerInput(game) {
-                detectTapGestures { offset ->
-                    val step = size.width / (BOARD_SIZE + 1f)
-                    val row = ((offset.y - step) / step).roundToInt()
-                    val column = ((offset.x - step) / step).roundToInt()
-                    val position = Position(row, column)
-                    if (position.isValid) onPositionClick(position)
+            .pointerInput(game, isInteractive) {
+                if (isInteractive) {
+                    detectTapGestures { offset ->
+                        val step = size.width / (BOARD_SIZE + 1f)
+                        val row = ((offset.y - step) / step).roundToInt()
+                        val column = ((offset.x - step) / step).roundToInt()
+                        val position = Position(row, column)
+                        if (position.isValid) onPositionClick(position)
+                    }
                 }
             },
     ) {

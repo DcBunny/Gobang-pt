@@ -69,6 +69,62 @@ class GobangScreenTest {
         composeRule.onNodeWithText("已落子 2 手").assertExists()
     }
 
+    @Test
+    fun reviewStepsThroughReadOnlyBoardAndRestoresGameOnExit() {
+        tapIntersection(7, 7)
+        tapIntersection(6, 7)
+        tapIntersection(8, 8)
+
+        composeRule.onNodeWithTag("review_button").performClick()
+        composeRule.onNodeWithText("复盘进度 0/3").assertExists()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+        composeRule.onNodeWithTag("previous_move_button").assertIsNotEnabled()
+        composeRule.onNodeWithTag("next_move_button").assertIsEnabled()
+
+        tapIntersection(10, 10)
+        composeRule.onNodeWithText("复盘进度 0/3").assertExists()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithText("复盘进度 1/3").assertExists()
+        composeRule.onNodeWithText("第 1 手 · 黑方落子：第 8 行，第 8 列").assertExists()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithText("复盘进度 2/3").assertExists()
+        composeRule.onNodeWithTag("previous_move_button").performClick()
+        composeRule.onNodeWithText("复盘进度 1/3").assertExists()
+
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithText("复盘进度 3/3").assertExists()
+        composeRule.onNodeWithText("已落子 3 手").assertExists()
+        composeRule.onNodeWithTag("next_move_button").assertIsNotEnabled()
+
+        composeRule.onNodeWithTag("exit_review_button").performClick()
+        composeRule.onNodeWithText("轮到白方落子").assertExists()
+        composeRule.onNodeWithText("已落子 3 手").assertExists()
+        composeRule.onNodeWithTag("review_button").assertExists()
+    }
+
+    @Test
+    fun reviewProgressSurvivesOrientationChanges() {
+        tapIntersection(7, 7)
+        tapIntersection(6, 7)
+        composeRule.onNodeWithTag("review_button").performClick()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("复盘进度 1/2").assertExists()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("复盘进度 2/2").assertExists()
+        composeRule.onNodeWithTag("exit_review_button").performClick()
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+        composeRule.onNodeWithText("轮到黑方落子").assertExists()
+    }
+
     private fun tapIntersection(row: Int, column: Int) {
         composeRule.onNodeWithTag("gobang_board").performTouchInput {
             val step = width / (BOARD_SIZE + 1f)

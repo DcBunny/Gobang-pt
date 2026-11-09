@@ -53,9 +53,14 @@ data class GobangGame(
         )
     }
 
+    fun replayTo(moveCount: Int): GobangGame {
+        require(moveCount in 0..moves.size) { "Move count must be within the game history" }
+        return moves.take(moveCount).fold(GobangGame()) { game, move -> game.play(move.position) }
+    }
+
     fun undo(): GobangGame {
         if (moves.isEmpty()) return this
-        return moves.dropLast(1).fold(GobangGame()) { game, move -> game.play(move.position) }
+        return replayTo(moves.lastIndex)
     }
 
     private fun winningLine(

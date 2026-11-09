@@ -144,6 +144,43 @@ class GobangGameTest {
         assertFalse(game.isOver)
     }
 
+    @Test
+    fun replayToRebuildsSelectedPrefixWithoutChangingOriginal() {
+        val game = alternatingGame(
+            blackPositions = listOf(Position(7, 7), Position(8, 8), Position(9, 9)),
+            whitePositions = listOf(Position(0, 0), Position(0, 2)),
+        )
+
+        val initial = game.replayTo(0)
+        val replay = game.replayTo(3)
+
+        assertTrue(initial.moves.isEmpty())
+        assertTrue(initial.board.all { it == null })
+        assertEquals(3, replay.moves.size)
+        assertEquals(Stone.BLACK, replay.stoneAt(Position(7, 7)))
+        assertEquals(Stone.WHITE, replay.stoneAt(Position(0, 0)))
+        assertEquals(Stone.BLACK, replay.stoneAt(Position(8, 8)))
+        assertNull(replay.stoneAt(Position(0, 2)))
+        assertEquals(Stone.WHITE, replay.currentPlayer)
+        assertEquals(5, game.moves.size)
+        assertEquals(Stone.WHITE, game.stoneAt(Position(0, 2)))
+    }
+
+    @Test
+    fun replayToFinalMoveRestoresResultAndWinningLine() {
+        val game = assertBlackWins((3..7).map { Position(7, it) })
+
+        assertEquals(game, game.replayTo(game.moves.size))
+    }
+
+    @Test
+    fun replayToRejectsMoveCountsOutsideHistory() {
+        val game = GobangGame().play(Position(7, 7))
+
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { game.replayTo(-1) }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { game.replayTo(2) }
+    }
+
     private fun assertBlackWins(blackPositions: List<Position>): GobangGame {
         val whitePositions = (0 until blackPositions.size - 1).map { Position(0, it * 2) }
         val game = alternatingGame(blackPositions, whitePositions)
