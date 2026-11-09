@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">双人五子棋</string>
+    <string name="game_title">五子棋</string>
+    <string name="local_two_players">同屏双人 · 黑棋先行</string>
+    <string name="black">黑方</string>
+    <string name="white">白方</string>
+    <string name="black_turn">轮到黑方落子</string>
+    <string name="white_turn">轮到白方落子</string>
+    <string name="black_wins">黑方获胜！</string>
+    <string name="white_wins">白方获胜！</string>
+    <string name="draw">棋盘已满，双方和棋</string>
+    <string name="undo">悔棋</string>
+    <string name="restart">重新开局</string>
+    <string name="restart_confirmation">当前对局尚未结束，确定要清空棋盘吗？</string>
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="move_count">已落子 %1$d 手</string>
+    <string name="board_description">十五路五子棋棋盘，点击交叉点落子</string>
+</resources>

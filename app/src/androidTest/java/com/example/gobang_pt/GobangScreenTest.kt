@@ -1,0 +1,78 @@
+package com.example.gobang_pt
+
+import android.content.pm.ActivityInfo
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import org.junit.Rule
+import org.junit.Test
+
+class GobangScreenTest {
+    @get:Rule
+    val composeRule = createAndroidComposeRule<MainActivity>()
+
+    @Test
+    fun tappingBoardAlternatesPlayersAndRejectsOccupiedPoint() {
+        tapIntersection(7, 7)
+        composeRule.onNodeWithText("轮到白方落子").assertExists()
+        tapIntersection(7, 7)
+        composeRule.onNodeWithText("轮到白方落子").assertExists()
+        tapIntersection(0, 0)
+        composeRule.onNodeWithText("轮到黑方落子").assertExists()
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+    }
+
+    @Test
+    fun completeGameCanBeWonUndoneAndRestarted() {
+        (3..6).forEach { column ->
+            tapIntersection(7, column)
+            tapIntersection(0, column - 3)
+        }
+        tapIntersection(7, 7)
+
+        composeRule.onNodeWithText("黑方获胜！").assertExists()
+        tapIntersection(10, 10)
+        composeRule.onNodeWithText("已落子 9 手").assertExists()
+
+        composeRule.onNodeWithTag("undo_button").performClick()
+        composeRule.onNodeWithText("轮到黑方落子").assertExists()
+        composeRule.onNodeWithText("已落子 8 手").assertExists()
+
+        composeRule.onNodeWithTag("restart_button").performClick()
+        composeRule.onNodeWithText("当前对局尚未结束，确定要清空棋盘吗？").assertExists()
+        composeRule.onNodeWithTag("confirm_restart_button").performClick()
+        composeRule.onNodeWithText("轮到黑方落子").assertExists()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+        composeRule.onNodeWithTag("undo_button").assertIsNotEnabled()
+        composeRule.onNodeWithTag("restart_button").assertIsEnabled()
+    }
+
+    @Test
+    fun gameSurvivesOrientationChanges() {
+        tapIntersection(7, 7)
+        tapIntersection(6, 7)
+
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("轮到黑方落子").assertExists()
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("轮到黑方落子").assertExists()
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+    }
+
+    private fun tapIntersection(row: Int, column: Int) {
+        composeRule.onNodeWithTag("gobang_board").performTouchInput {
+            val step = width / (BOARD_SIZE + 1f)
+            click(Offset(step * (column + 1), step * (row + 1)))
+        }
+    }
+}
