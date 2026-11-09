@@ -1,7 +1,23 @@
 <resources>
-    <string name="app_name">双人五子棋</string>
+    <string name="app_name">五子棋</string>
     <string name="game_title">五子棋</string>
     <string name="local_two_players">同屏双人 · 黑棋先行</string>
+    <string name="local_vs_ai">人机对战 · 玩家执黑先行</string>
+    <string name="local_mode">同屏双人</string>
+    <string name="ai_mode">人机对战</string>
+    <string name="difficulty">电脑难度</string>
+    <string name="difficulty_easy">初级</string>
+    <string name="difficulty_medium">中级</string>
+    <string name="difficulty_hard">高级</string>
+    <string name="player_black">玩家 · 黑方</string>
+    <string name="computer_white">电脑 · 白方</string>
+    <string name="player_turn">轮到你落子</string>
+    <string name="computer_turn">轮到电脑落子</string>
+    <string name="computer_thinking">电脑正在思考…</string>
+    <string name="player_wins">你获胜了！</string>
+    <string name="computer_wins">电脑获胜！</string>
+    <string name="change_settings">切换对局设置</string>
+    <string name="change_settings_confirmation">切换模式或难度将开始新对局，确定继续吗？</string>
     <string name="black">黑方</string>
     <string name="white">白方</string>
     <string name="black_turn">轮到黑方落子</string>

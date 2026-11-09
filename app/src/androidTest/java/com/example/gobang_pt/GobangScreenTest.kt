@@ -4,8 +4,10 @@ import android.content.pm.ActivityInfo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -123,6 +125,59 @@ class GobangScreenTest {
         composeRule.onNodeWithTag("exit_review_button").performClick()
         composeRule.onNodeWithText("已落子 2 手").assertExists()
         composeRule.onNodeWithText("轮到黑方落子").assertExists()
+    }
+
+    @Test
+    fun aiModeRespondsAndUndoRemovesWholeRound() {
+        composeRule.onNodeWithTag("ai_mode").performClick()
+        composeRule.onNodeWithTag("difficulty_easy").performClick()
+        composeRule.onNodeWithTag("difficulty_easy").assertIsSelected()
+
+        tapIntersection(7, 7)
+        waitForMoveCount(2)
+        composeRule.onNodeWithText("轮到你落子").assertExists()
+
+        composeRule.onNodeWithTag("undo_button").performClick()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+        composeRule.onNodeWithText("轮到你落子").assertExists()
+    }
+
+    @Test
+    fun switchingModeWithMovesStartsNewGameAfterConfirmation() {
+        tapIntersection(7, 7)
+        composeRule.onNodeWithTag("ai_mode").performClick()
+
+        composeRule.onNodeWithText("切换模式或难度将开始新对局，确定继续吗？").assertExists()
+        composeRule.onNodeWithTag("confirm_settings_button").performClick()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+        composeRule.onNodeWithText("轮到你落子").assertExists()
+        composeRule.onNodeWithTag("difficulty_easy").assertIsSelected()
+    }
+
+    @Test
+    fun aiSettingsAndGameSurviveOrientationChanges() {
+        composeRule.onNodeWithTag("ai_mode").performClick()
+        composeRule.onNodeWithTag("difficulty_hard").performClick()
+        tapIntersection(7, 7)
+        waitForMoveCount(2)
+
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("difficulty_hard").assertIsSelected()
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+        composeRule.onNodeWithText("轮到你落子").assertExists()
+
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("difficulty_hard").assertIsSelected()
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+    }
+
+    private fun waitForMoveCount(moveCount: Int) {
+        val text = "已落子 $moveCount 手"
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     private fun tapIntersection(row: Int, column: Int) {

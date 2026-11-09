@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -29,12 +32,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,7 +61,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.gobang_pt.ui.theme.GobangptTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+
+private enum class GameMode {
+    LOCAL,
+    VS_AI,
+}
 
 private val BoardColor = Color(0xFFD8A75D)
 private val GridColor = Color(0xFF4A321D)
@@ -92,18 +104,69 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun GobangScreen() {
     var game by rememberSaveable(stateSaver = gameSaver) { mutableStateOf(GobangGame()) }
+    var gameMode by rememberSaveable { mutableStateOf(GameMode.LOCAL) }
+    var aiDifficulty by rememberSaveable { mutableStateOf(AiDifficulty.EASY) }
+    var isAiThinking by remember { mutableStateOf(false) }
     var showRestartConfirmation by remember { mutableStateOf(false) }
+    var showSettingsConfirmation by remember { mutableStateOf(false) }
+    var requestedGameMode by remember { mutableStateOf<GameMode?>(null) }
+    var requestedDifficulty by remember { mutableStateOf<AiDifficulty?>(null) }
     var isReviewing by rememberSaveable { mutableStateOf(false) }
     var reviewMoveCount by rememberSaveable { mutableStateOf(0) }
     val currentReviewMoveCount = reviewMoveCount.coerceIn(0, game.moves.size)
     val displayedGame = if (isReviewing) game.replayTo(currentReviewMoveCount) else game
 
+    LaunchedEffect(game, gameMode, aiDifficulty, isReviewing) {
+        isAiThinking = false
+        if (gameMode == GameMode.VS_AI && !isReviewing && !game.isOver && game.currentPlayer == Stone.WHITE) {
+            isAiThinking = true
+            val aiMove = withContext(Dispatchers.Default) {
+                GobangAi.chooseMove(game, aiDifficulty)
+            }
+            if (aiMove != null) game = game.play(aiMove)
+            isAiThinking = false
+        }
+    }
+
+    val onPositionClick: (Position) -> Unit = { position ->
+        val canPlay = !isReviewing && !isAiThinking &&
+            (gameMode == GameMode.LOCAL || game.currentPlayer == Stone.BLACK)
+        if (canPlay) game = game.play(position)
+    }
+    val onUndo = {
+        if (gameMode == GameMode.LOCAL) {
+            game = game.undo()
+        } else {
+            val movesToUndo = if (game.moves.lastOrNull()?.stone == Stone.BLACK) 1 else 2
+            game = game.replayTo((game.moves.size - movesToUndo).coerceAtLeast(0))
+        }
+    }
     val onRestart = {
         if (game.moves.isEmpty()) game = GobangGame() else showRestartConfirmation = true
     }
     val onStartReview = {
         reviewMoveCount = 0
         isReviewing = true
+    }
+    val onGameModeChange: (GameMode) -> Unit = { mode ->
+        if (mode != gameMode) {
+            if (game.moves.isEmpty()) {
+                gameMode = mode
+            } else {
+                requestedGameMode = mode
+                showSettingsConfirmation = true
+            }
+        }
+    }
+    val onDifficultyChange: (AiDifficulty) -> Unit = { difficulty ->
+        if (difficulty != aiDifficulty) {
+            if (game.moves.isEmpty()) {
+                aiDifficulty = difficulty
+            } else {
+                requestedDifficulty = difficulty
+                showSettingsConfirmation = true
+            }
+        }
     }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -115,13 +178,18 @@ fun GobangScreen() {
             if (maxWidth >= 700.dp && maxWidth > maxHeight) {
                 ExpandedGobangLayout(
                     game = displayedGame,
+                    gameMode = gameMode,
+                    aiDifficulty = aiDifficulty,
+                    isAiThinking = isAiThinking,
                     totalMoveCount = game.moves.size,
                     isReviewing = isReviewing,
                     reviewMoveCount = currentReviewMoveCount,
-                    onPositionClick = { position -> game = game.play(position) },
-                    onUndo = { game = game.undo() },
+                    onPositionClick = onPositionClick,
+                    onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onGameModeChange = onGameModeChange,
+                    onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
                     onNextMove = { reviewMoveCount = currentReviewMoveCount + 1 },
                     onExitReview = { isReviewing = false },
@@ -129,13 +197,18 @@ fun GobangScreen() {
             } else {
                 CompactGobangLayout(
                     game = displayedGame,
+                    gameMode = gameMode,
+                    aiDifficulty = aiDifficulty,
+                    isAiThinking = isAiThinking,
                     totalMoveCount = game.moves.size,
                     isReviewing = isReviewing,
                     reviewMoveCount = currentReviewMoveCount,
-                    onPositionClick = { position -> game = game.play(position) },
-                    onUndo = { game = game.undo() },
+                    onPositionClick = onPositionClick,
+                    onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onGameModeChange = onGameModeChange,
+                    onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
                     onNextMove = { reviewMoveCount = currentReviewMoveCount + 1 },
                     onExitReview = { isReviewing = false },
@@ -167,11 +240,52 @@ fun GobangScreen() {
             },
         )
     }
+
+    if (showSettingsConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                showSettingsConfirmation = false
+                requestedGameMode = null
+                requestedDifficulty = null
+            },
+            title = { Text(stringResource(R.string.change_settings)) },
+            text = { Text(stringResource(R.string.change_settings_confirmation)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        gameMode = requestedGameMode ?: gameMode
+                        aiDifficulty = requestedDifficulty ?: aiDifficulty
+                        game = GobangGame()
+                        requestedGameMode = null
+                        requestedDifficulty = null
+                        showSettingsConfirmation = false
+                    },
+                    modifier = Modifier.testTag("confirm_settings_button"),
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showSettingsConfirmation = false
+                        requestedGameMode = null
+                        requestedDifficulty = null
+                    },
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
 private fun CompactGobangLayout(
     game: GobangGame,
+    gameMode: GameMode,
+    aiDifficulty: AiDifficulty,
+    isAiThinking: Boolean,
     totalMoveCount: Int,
     isReviewing: Boolean,
     reviewMoveCount: Int,
@@ -179,6 +293,8 @@ private fun CompactGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onGameModeChange: (GameMode) -> Unit,
+    onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
     onNextMove: () -> Unit,
     onExitReview: () -> Unit,
@@ -192,13 +308,26 @@ private fun CompactGobangLayout(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            GameHeader()
-            PlayerCards(Modifier.padding(top = 16.dp), game)
-            GameStatus(game, Modifier.padding(vertical = 16.dp))
+            GameHeader(gameMode)
+            GameSettings(
+                gameMode = gameMode,
+                aiDifficulty = aiDifficulty,
+                enabled = !isAiThinking && !isReviewing,
+                onGameModeChange = onGameModeChange,
+                onDifficultyChange = onDifficultyChange,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            PlayerCards(Modifier.padding(top = 12.dp), game, gameMode)
+            GameStatus(game, gameMode, isAiThinking, Modifier.padding(vertical = 12.dp))
             if (isReviewing) {
                 ReviewStatus(game, reviewMoveCount, totalMoveCount, Modifier.padding(bottom = 12.dp))
             }
-            GobangBoard(game, onPositionClick, isInteractive = !isReviewing)
+            GobangBoard(
+                game = game,
+                onPositionClick = onPositionClick,
+                isInteractive = !isReviewing && !isAiThinking &&
+                    (gameMode == GameMode.LOCAL || game.currentPlayer == Stone.BLACK),
+            )
             if (isReviewing) {
                 ReviewActions(
                     reviewMoveCount = reviewMoveCount,
@@ -209,7 +338,14 @@ private fun CompactGobangLayout(
                     modifier = Modifier.padding(top = 20.dp),
                 )
             } else {
-                GameActions(game, onUndo, onRestart, onStartReview, Modifier.padding(top = 20.dp))
+                GameActions(
+                    game = game,
+                    onUndo = onUndo,
+                    onRestart = onRestart,
+                    onStartReview = onStartReview,
+                    enabled = !isAiThinking,
+                    modifier = Modifier.padding(top = 20.dp),
+                )
             }
             MoveCount(game.moves.size, Modifier.padding(top = 12.dp, bottom = 8.dp))
         }
@@ -219,6 +355,9 @@ private fun CompactGobangLayout(
 @Composable
 private fun ExpandedGobangLayout(
     game: GobangGame,
+    gameMode: GameMode,
+    aiDifficulty: AiDifficulty,
+    isAiThinking: Boolean,
     totalMoveCount: Int,
     isReviewing: Boolean,
     reviewMoveCount: Int,
@@ -226,6 +365,8 @@ private fun ExpandedGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onGameModeChange: (GameMode) -> Unit,
+    onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
     onNextMove: () -> Unit,
     onExitReview: () -> Unit,
@@ -246,7 +387,8 @@ private fun ExpandedGobangLayout(
             GobangBoard(
                 game = game,
                 onPositionClick = onPositionClick,
-                isInteractive = !isReviewing,
+                isInteractive = !isReviewing && !isAiThinking &&
+                    (gameMode == GameMode.LOCAL || game.currentPlayer == Stone.BLACK),
                 modifier = Modifier.size(minOf(maxWidth, maxHeight)),
             )
         }
@@ -256,9 +398,17 @@ private fun ExpandedGobangLayout(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            GameHeader()
-            PlayerCards(Modifier.padding(top = 24.dp), game)
-            GameStatus(game, Modifier.padding(vertical = 20.dp))
+            GameHeader(gameMode)
+            GameSettings(
+                gameMode = gameMode,
+                aiDifficulty = aiDifficulty,
+                enabled = !isAiThinking && !isReviewing,
+                onGameModeChange = onGameModeChange,
+                onDifficultyChange = onDifficultyChange,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            PlayerCards(Modifier.padding(top = 16.dp), game, gameMode)
+            GameStatus(game, gameMode, isAiThinking, Modifier.padding(vertical = 16.dp))
             if (isReviewing) {
                 ReviewStatus(game, reviewMoveCount, totalMoveCount, Modifier.padding(bottom = 16.dp))
                 ReviewActions(
@@ -269,7 +419,7 @@ private fun ExpandedGobangLayout(
                     onExitReview = onExitReview,
                 )
             } else {
-                GameActions(game, onUndo, onRestart, onStartReview)
+                GameActions(game, onUndo, onRestart, onStartReview, enabled = !isAiThinking)
             }
             MoveCount(game.moves.size, Modifier.padding(top = 12.dp, bottom = 8.dp))
         }
@@ -277,7 +427,7 @@ private fun ExpandedGobangLayout(
 }
 
 @Composable
-private fun GameHeader(modifier: Modifier = Modifier) {
+private fun GameHeader(gameMode: GameMode, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = stringResource(R.string.game_title),
@@ -285,7 +435,9 @@ private fun GameHeader(modifier: Modifier = Modifier) {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = stringResource(R.string.local_two_players),
+            text = stringResource(
+                if (gameMode == GameMode.LOCAL) R.string.local_two_players else R.string.local_vs_ai,
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -294,20 +446,85 @@ private fun GameHeader(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PlayerCards(modifier: Modifier = Modifier, game: GobangGame) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        PlayerCard(Stone.BLACK, game.currentPlayer, !game.isOver, Modifier.weight(1f))
-        PlayerCard(Stone.WHITE, game.currentPlayer, !game.isOver, Modifier.weight(1f))
+private fun GameSettings(
+    gameMode: GameMode,
+    aiDifficulty: AiDifficulty,
+    enabled: Boolean,
+    onGameModeChange: (GameMode) -> Unit,
+    onDifficultyChange: (AiDifficulty) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = gameMode == GameMode.LOCAL,
+                onClick = { onGameModeChange(GameMode.LOCAL) },
+                label = { Text(stringResource(R.string.local_mode)) },
+                enabled = enabled,
+                modifier = Modifier.testTag("local_mode"),
+            )
+            FilterChip(
+                selected = gameMode == GameMode.VS_AI,
+                onClick = { onGameModeChange(GameMode.VS_AI) },
+                label = { Text(stringResource(R.string.ai_mode)) },
+                enabled = enabled,
+                modifier = Modifier.testTag("ai_mode"),
+            )
+        }
+        if (gameMode == GameMode.VS_AI) {
+            Text(
+                text = stringResource(R.string.difficulty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AiDifficulty.entries.forEach { difficulty ->
+                    FilterChip(
+                        selected = aiDifficulty == difficulty,
+                        onClick = { onDifficultyChange(difficulty) },
+                        label = { Text(stringResource(difficulty.labelResource)) },
+                        enabled = enabled,
+                        modifier = Modifier.testTag(difficulty.testTag),
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun GameStatus(game: GobangGame, modifier: Modifier = Modifier) {
+private fun PlayerCards(modifier: Modifier = Modifier, game: GobangGame, gameMode: GameMode) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        PlayerCard(
+            stone = Stone.BLACK,
+            labelResource = if (gameMode == GameMode.LOCAL) R.string.black else R.string.player_black,
+            currentPlayer = game.currentPlayer,
+            gameInProgress = !game.isOver,
+            modifier = Modifier.weight(1f),
+        )
+        PlayerCard(
+            stone = Stone.WHITE,
+            labelResource = if (gameMode == GameMode.LOCAL) R.string.white else R.string.computer_white,
+            currentPlayer = game.currentPlayer,
+            gameInProgress = !game.isOver,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun GameStatus(
+    game: GobangGame,
+    gameMode: GameMode,
+    isAiThinking: Boolean,
+    modifier: Modifier = Modifier,
+) {
     Text(
-        text = game.statusText(),
+        text = game.statusText(gameMode, isAiThinking),
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
         modifier = modifier.testTag("game_status"),
@@ -353,19 +570,21 @@ private fun GameActions(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(
                 onClick = onUndo,
-                enabled = game.moves.isNotEmpty(),
+                enabled = enabled && game.moves.isNotEmpty(),
                 modifier = Modifier.testTag("undo_button"),
             ) {
                 Text(stringResource(R.string.undo))
             }
             Button(
                 onClick = onRestart,
+                enabled = enabled,
                 modifier = Modifier.testTag("restart_button"),
             ) {
                 Text(stringResource(R.string.restart))
@@ -373,7 +592,7 @@ private fun GameActions(
         }
         OutlinedButton(
             onClick = onStartReview,
-            enabled = game.moves.isNotEmpty(),
+            enabled = enabled && game.moves.isNotEmpty(),
             modifier = Modifier.padding(top = 8.dp).testTag("review_button"),
         ) {
             Text(stringResource(R.string.review))
@@ -429,6 +648,7 @@ private fun MoveCount(moveCount: Int, modifier: Modifier = Modifier) {
 @Composable
 private fun PlayerCard(
     stone: Stone,
+    labelResource: Int,
     currentPlayer: Stone,
     gameInProgress: Boolean,
     modifier: Modifier = Modifier,
@@ -456,7 +676,7 @@ private fun PlayerCard(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = stringResource(if (stone == Stone.BLACK) R.string.black else R.string.white),
+                text = stringResource(labelResource),
                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
             )
         }
@@ -473,6 +693,19 @@ private fun GobangBoard(
     val boardDescription = stringResource(
         if (isInteractive) R.string.board_description else R.string.review_board_description,
     )
+    val lastMove = game.moves.lastOrNull()
+    val moveHighlightProgress = remember { Animatable(1f) }
+    LaunchedEffect(lastMove) {
+        if (lastMove == null) {
+            moveHighlightProgress.snapTo(1f)
+        } else {
+            moveHighlightProgress.snapTo(0f)
+            moveHighlightProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+            )
+        }
+    }
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -543,27 +776,63 @@ private fun GobangBoard(
             )
         }
 
-        game.moves.lastOrNull()?.let { lastMove ->
+        lastMove?.let { move ->
+            val center = Offset(
+                step * (move.position.column + 1),
+                step * (move.position.row + 1),
+            )
+            drawCircle(
+                color = LastMoveColor,
+                radius = step * 0.49f,
+                center = center,
+                style = Stroke(width = step * 0.055f),
+            )
             drawCircle(
                 color = LastMoveColor,
                 radius = step * 0.10f,
-                center = Offset(
-                    step * (lastMove.position.column + 1),
-                    step * (lastMove.position.row + 1),
-                ),
+                center = center,
             )
+
+            val progress = moveHighlightProgress.value
+            if (progress < 1f) {
+                drawCircle(
+                    color = LastMoveColor.copy(alpha = 0.85f * (1f - progress)),
+                    radius = step * (0.50f + 0.40f * progress),
+                    center = center,
+                    style = Stroke(width = step * 0.07f * (1f - progress)),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun GobangGame.statusText(): String = when {
+private fun GobangGame.statusText(gameMode: GameMode, isAiThinking: Boolean): String = when {
+    winner == Stone.BLACK && gameMode == GameMode.VS_AI -> stringResource(R.string.player_wins)
+    winner == Stone.WHITE && gameMode == GameMode.VS_AI -> stringResource(R.string.computer_wins)
     winner == Stone.BLACK -> stringResource(R.string.black_wins)
     winner == Stone.WHITE -> stringResource(R.string.white_wins)
     isDraw -> stringResource(R.string.draw)
+    isAiThinking -> stringResource(R.string.computer_thinking)
+    gameMode == GameMode.VS_AI && currentPlayer == Stone.BLACK -> stringResource(R.string.player_turn)
+    gameMode == GameMode.VS_AI -> stringResource(R.string.computer_turn)
     currentPlayer == Stone.BLACK -> stringResource(R.string.black_turn)
     else -> stringResource(R.string.white_turn)
 }
+
+private val AiDifficulty.labelResource: Int
+    get() = when (this) {
+        AiDifficulty.EASY -> R.string.difficulty_easy
+        AiDifficulty.MEDIUM -> R.string.difficulty_medium
+        AiDifficulty.HARD -> R.string.difficulty_hard
+    }
+
+private val AiDifficulty.testTag: String
+    get() = when (this) {
+        AiDifficulty.EASY -> "difficulty_easy"
+        AiDifficulty.MEDIUM -> "difficulty_medium"
+        AiDifficulty.HARD -> "difficulty_hard"
+    }
 
 @Preview(name = "Phone", showBackground = true)
 @Composable
