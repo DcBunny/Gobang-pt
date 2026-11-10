@@ -143,6 +143,31 @@ class GobangScreenTest {
     }
 
     @Test
+    fun aiModeWaitsOneSecondBeforeResponding() {
+        composeRule.onNodeWithTag("ai_mode").performClick()
+        composeRule.mainClock.autoAdvance = false
+        try {
+            tapIntersection(7, 7)
+            composeRule.mainClock.advanceTimeByFrame()
+            val thinkingStartedAt = composeRule.mainClock.currentTime
+            composeRule.mainClock.advanceTimeByFrame()
+            composeRule.onNodeWithText("电脑正在思考…").assertExists()
+            composeRule.onNodeWithText("已落子 1 手").assertExists()
+
+            val elapsedThinkingTime = composeRule.mainClock.currentTime - thinkingStartedAt
+            composeRule.mainClock.advanceTimeBy(999 - elapsedThinkingTime)
+            composeRule.onNodeWithText("已落子 1 手").assertExists()
+
+            composeRule.mainClock.advanceTimeBy(1)
+            composeRule.mainClock.autoAdvance = true
+            waitForMoveCount(2)
+            composeRule.onNodeWithText("轮到你落子").assertExists()
+        } finally {
+            composeRule.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
     fun switchingModeWithMovesStartsNewGameAfterConfirmation() {
         tapIntersection(7, 7)
         composeRule.onNodeWithTag("ai_mode").performClick()

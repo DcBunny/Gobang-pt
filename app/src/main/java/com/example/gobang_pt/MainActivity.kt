@@ -1,6 +1,7 @@
 package com.example.gobang_pt
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -62,6 +63,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.gobang_pt.ui.theme.GobangptTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
@@ -120,9 +122,13 @@ fun GobangScreen() {
         isAiThinking = false
         if (gameMode == GameMode.VS_AI && !isReviewing && !game.isOver && game.currentPlayer == Stone.WHITE) {
             isAiThinking = true
+            val thinkingTimeMillis = 1000L
+            val thinkingStartedAt = SystemClock.elapsedRealtime()
             val aiMove = withContext(Dispatchers.Default) {
                 GobangAi.chooseMove(game, aiDifficulty)
             }
+            val remainingThinkingTime = thinkingTimeMillis - (SystemClock.elapsedRealtime() - thinkingStartedAt)
+            if (remainingThinkingTime > 0) delay(remainingThinkingTime)
             if (aiMove != null) game = game.play(aiMove)
             isAiThinking = false
         }
