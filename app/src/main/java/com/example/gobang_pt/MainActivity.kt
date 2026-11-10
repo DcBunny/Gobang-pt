@@ -3,6 +3,7 @@ package com.example.gobang_pt
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.Animatable
@@ -115,12 +116,50 @@ fun GobangScreen() {
     var requestedDifficulty by remember { mutableStateOf<AiDifficulty?>(null) }
     var isReviewing by rememberSaveable { mutableStateOf(false) }
     var reviewMoveCount by rememberSaveable { mutableStateOf(0) }
+    var showLearningCenter by rememberSaveable { mutableStateOf(false) }
+    var learningCategory by rememberSaveable { mutableStateOf(LearningCategory.CLASSIC) }
+    var selectedClassicGameId by rememberSaveable { mutableStateOf<String?>(null) }
+    var classicReviewMoveCount by rememberSaveable { mutableStateOf(0) }
+    var selectedPatternLessonId by rememberSaveable { mutableStateOf<String?>(null) }
+    var isPatternPractice by rememberSaveable { mutableStateOf(false) }
+    var foundPatternAnswerIndices by rememberSaveable { mutableStateOf(intArrayOf()) }
+    var showPatternAnswerError by rememberSaveable { mutableStateOf(false) }
     val currentReviewMoveCount = reviewMoveCount.coerceIn(0, game.moves.size)
     val displayedGame = if (isReviewing) game.replayTo(currentReviewMoveCount) else game
+    val selectedClassicGame = classicGames.firstOrNull { it.id == selectedClassicGameId }
+    val selectedPatternLesson = patternLessons.firstOrNull { it.id == selectedPatternLessonId }
+    val foundPatternAnswers = foundPatternAnswerIndices.map { index ->
+        Position(index / BOARD_SIZE, index % BOARD_SIZE)
+    }
+    val resetPatternPractice = {
+        foundPatternAnswerIndices = intArrayOf()
+        showPatternAnswerError = false
+    }
+    val onBackToGame = {
+        showLearningCenter = false
+        selectedClassicGameId = null
+        selectedPatternLessonId = null
+        isPatternPractice = false
+        resetPatternPractice()
+    }
 
-    LaunchedEffect(game, gameMode, aiDifficulty, isReviewing) {
+    BackHandler(enabled = showLearningCenter) {
+        when {
+            selectedClassicGame != null -> selectedClassicGameId = null
+            selectedPatternLesson != null -> {
+                selectedPatternLessonId = null
+                isPatternPractice = false
+                resetPatternPractice()
+            }
+            else -> onBackToGame()
+        }
+    }
+
+    LaunchedEffect(game, gameMode, aiDifficulty, isReviewing, showLearningCenter) {
         isAiThinking = false
-        if (gameMode == GameMode.VS_AI && !isReviewing && !game.isOver && game.currentPlayer == Stone.WHITE) {
+        if (gameMode == GameMode.VS_AI && !isReviewing && !showLearningCenter &&
+            !game.isOver && game.currentPlayer == Stone.WHITE
+        ) {
             isAiThinking = true
             val thinkingTimeMillis = 1000L
             val thinkingStartedAt = SystemClock.elapsedRealtime()
@@ -181,7 +220,79 @@ fun GobangScreen() {
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (maxWidth >= 700.dp && maxWidth > maxHeight) {
+            if (showLearningCenter && selectedClassicGame != null) {
+                ClassicGameReviewScreen(
+                    classicGame = selectedClassicGame,
+                    moveCount = classicReviewMoveCount,
+                    onPreviousMove = {
+                        classicReviewMoveCount = (classicReviewMoveCount - 1)
+                            .coerceAtLeast(0)
+                    },
+                    onNextMove = {
+                        classicReviewMoveCount = (classicReviewMoveCount + 1)
+                            .coerceAtMost(selectedClassicGame.moves.size)
+                    },
+                    onBackToList = { selectedClassicGameId = null },
+                    onBackToGame = onBackToGame,
+                )
+            } else if (showLearningCenter && selectedPatternLesson != null) {
+                PatternLessonScreen(
+                    lesson = selectedPatternLesson,
+                    isPractice = isPatternPractice,
+                    foundAnswers = foundPatternAnswers,
+                    showError = showPatternAnswerError,
+                    onStartPractice = {
+                        isPatternPractice = true
+                        showPatternAnswerError = false
+                    },
+                    onShowExample = {
+                        isPatternPractice = false
+                        showPatternAnswerError = false
+                    },
+                    onPositionClick = { position ->
+                        when (position) {
+                            in foundPatternAnswers -> Unit
+                            in selectedPatternLesson.exercise.answers -> {
+                                val answerIndex = position.row * BOARD_SIZE + position.column
+                                foundPatternAnswerIndices += answerIndex
+                                showPatternAnswerError = false
+                            }
+                            else -> showPatternAnswerError = true
+                        }
+                    },
+                    onResetPractice = resetPatternPractice,
+                    onNextLesson = patternLessons.indexOf(selectedPatternLesson)
+                        .takeIf { it in 0 until patternLessons.lastIndex }
+                        ?.let { index ->
+                            {
+                                selectedPatternLessonId = patternLessons[index + 1].id
+                                isPatternPractice = false
+                                resetPatternPractice()
+                            }
+                        },
+                    onBackToList = {
+                        selectedPatternLessonId = null
+                        isPatternPractice = false
+                        resetPatternPractice()
+                    },
+                    onBackToGame = onBackToGame,
+                )
+            } else if (showLearningCenter) {
+                LearningHomeScreen(
+                    selectedCategory = learningCategory,
+                    onCategoryChange = { learningCategory = it },
+                    onSelectGame = { classicGame ->
+                        selectedClassicGameId = classicGame.id
+                        classicReviewMoveCount = 0
+                    },
+                    onSelectLesson = { lesson ->
+                        selectedPatternLessonId = lesson.id
+                        isPatternPractice = false
+                        resetPatternPractice()
+                    },
+                    onBackToGame = onBackToGame,
+                )
+            } else if (maxWidth >= 700.dp && maxWidth > maxHeight) {
                 ExpandedGobangLayout(
                     game = displayedGame,
                     gameMode = gameMode,
@@ -194,6 +305,13 @@ fun GobangScreen() {
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onOpenLearning = {
+                        showLearningCenter = true
+                        selectedClassicGameId = null
+                        selectedPatternLessonId = null
+                        isPatternPractice = false
+                        resetPatternPractice()
+                    },
                     onGameModeChange = onGameModeChange,
                     onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
@@ -213,6 +331,13 @@ fun GobangScreen() {
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onOpenLearning = {
+                        showLearningCenter = true
+                        selectedClassicGameId = null
+                        selectedPatternLessonId = null
+                        isPatternPractice = false
+                        resetPatternPractice()
+                    },
                     onGameModeChange = onGameModeChange,
                     onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
@@ -299,6 +424,7 @@ private fun CompactGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onOpenLearning: () -> Unit,
     onGameModeChange: (GameMode) -> Unit,
     onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
@@ -349,6 +475,7 @@ private fun CompactGobangLayout(
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onOpenLearning = onOpenLearning,
                     enabled = !isAiThinking,
                     modifier = Modifier.padding(top = 20.dp),
                 )
@@ -371,6 +498,7 @@ private fun ExpandedGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onOpenLearning: () -> Unit,
     onGameModeChange: (GameMode) -> Unit,
     onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
@@ -425,7 +553,14 @@ private fun ExpandedGobangLayout(
                     onExitReview = onExitReview,
                 )
             } else {
-                GameActions(game, onUndo, onRestart, onStartReview, enabled = !isAiThinking)
+                GameActions(
+                    game = game,
+                    onUndo = onUndo,
+                    onRestart = onRestart,
+                    onStartReview = onStartReview,
+                    onOpenLearning = onOpenLearning,
+                    enabled = !isAiThinking,
+                )
             }
             MoveCount(game.moves.size, Modifier.padding(top = 12.dp, bottom = 8.dp))
         }
@@ -538,7 +673,7 @@ private fun GameStatus(
 }
 
 @Composable
-private fun ReviewStatus(
+internal fun ReviewStatus(
     game: GobangGame,
     reviewMoveCount: Int,
     totalMoveCount: Int,
@@ -576,6 +711,7 @@ private fun GameActions(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onOpenLearning: () -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -596,23 +732,37 @@ private fun GameActions(
                 Text(stringResource(R.string.restart))
             }
         }
-        OutlinedButton(
-            onClick = onStartReview,
-            enabled = enabled && game.moves.isNotEmpty(),
-            modifier = Modifier.padding(top = 8.dp).testTag("review_button"),
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(top = 8.dp),
         ) {
-            Text(stringResource(R.string.review))
+            OutlinedButton(
+                onClick = onStartReview,
+                enabled = enabled && game.moves.isNotEmpty(),
+                modifier = Modifier.testTag("review_button"),
+            ) {
+                Text(stringResource(R.string.review))
+            }
+            OutlinedButton(
+                onClick = onOpenLearning,
+                enabled = enabled,
+                modifier = Modifier.testTag("learning_home_button"),
+            ) {
+                Text(stringResource(R.string.learning_home))
+            }
         }
     }
 }
 
 @Composable
-private fun ReviewActions(
+internal fun ReviewActions(
     reviewMoveCount: Int,
     totalMoveCount: Int,
     onPreviousMove: () -> Unit,
     onNextMove: () -> Unit,
     onExitReview: () -> Unit,
+    exitLabelResource: Int = R.string.exit_review,
+    exitTestTag: String = "exit_review_button",
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -634,15 +784,15 @@ private fun ReviewActions(
         }
         TextButton(
             onClick = onExitReview,
-            modifier = Modifier.padding(top = 4.dp).testTag("exit_review_button"),
+            modifier = Modifier.padding(top = 4.dp).testTag(exitTestTag),
         ) {
-            Text(stringResource(R.string.exit_review))
+            Text(stringResource(exitLabelResource))
         }
     }
 }
 
 @Composable
-private fun MoveCount(moveCount: Int, modifier: Modifier = Modifier) {
+internal fun MoveCount(moveCount: Int, modifier: Modifier = Modifier) {
     Text(
         text = stringResource(R.string.move_count, moveCount),
         style = MaterialTheme.typography.bodySmall,
@@ -690,16 +840,22 @@ private fun PlayerCard(
 }
 
 @Composable
-private fun GobangBoard(
+internal fun GobangBoard(
     game: GobangGame,
     onPositionClick: (Position) -> Unit,
     isInteractive: Boolean = true,
+    showLastMove: Boolean = true,
+    highlightedPositions: Set<Position> = emptySet(),
+    highlightColor: Color = LastMoveColor,
+    boardDescriptionResource: Int = if (isInteractive) {
+        R.string.board_description
+    } else {
+        R.string.review_board_description
+    },
     modifier: Modifier = Modifier,
 ) {
-    val boardDescription = stringResource(
-        if (isInteractive) R.string.board_description else R.string.review_board_description,
-    )
-    val lastMove = game.moves.lastOrNull()
+    val boardDescription = stringResource(boardDescriptionResource)
+    val lastMove = if (showLastMove) game.moves.lastOrNull() else null
     val moveHighlightProgress = remember { Animatable(1f) }
     LaunchedEffect(lastMove) {
         if (lastMove == null) {
@@ -780,6 +936,26 @@ private fun GobangBoard(
                 center = center,
                 style = Stroke(width = lineWidth),
             )
+        }
+
+        highlightedPositions.forEach { position ->
+            val center = Offset(
+                step * (position.column + 1),
+                step * (position.row + 1),
+            )
+            drawCircle(
+                color = highlightColor,
+                radius = step * 0.49f,
+                center = center,
+                style = Stroke(width = step * 0.05f),
+            )
+            if (game.stoneAt(position) == null) {
+                drawCircle(
+                    color = highlightColor,
+                    radius = step * 0.08f,
+                    center = center,
+                )
+            }
         }
 
         lastMove?.let { move ->
