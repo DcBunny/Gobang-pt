@@ -1,6 +1,7 @@
 package com.example.gobang_pt
 
 import kotlin.math.abs
+import kotlin.random.Random
 
 enum class AiDifficulty {
     EASY,
@@ -10,11 +11,22 @@ enum class AiDifficulty {
 
 object GobangAi {
     private const val WIN_SCORE = 100_000_000
+    private const val FIVE_SCORE = 10_000_000
+    private const val OPEN_FOUR_SCORE = 1_000_000
+    private const val FOUR_SCORE = 200_000
+    private const val OPEN_THREE_SCORE = 50_000
+    private const val THREE_SCORE = 5_000
+    private const val DOUBLE_FOUR_BONUS = 2_000_000
+    private const val FOUR_THREE_BONUS = 1_000_000
+    private const val DOUBLE_THREE_BONUS = 75_000
+    private const val LINE_RADIUS = 5
     private val directions = listOf(1 to 0, 0 to 1, 1 to 1, 1 to -1)
+    private val openThreeMasks = intArrayOf(0b001110, 0b010110, 0b011010)
 
     fun chooseMove(
         game: GobangGame,
         difficulty: AiDifficulty,
+        random: Random = Random.Default,
     ): Position? {
         if (game.isOver) return null
         val candidates = candidatePositions(game.board)
@@ -26,7 +38,7 @@ object GobangAi {
         if (winningMove != null) return winningMove
 
         return when (difficulty) {
-            AiDifficulty.EASY -> chooseHeuristicMove(game.board, candidates, game.currentPlayer)
+            AiDifficulty.EASY -> chooseHeuristicMove(game.board, candidates, game.currentPlayer, random)
             AiDifficulty.MEDIUM -> chooseSearchMove(
                 board = game.board,
                 candidates = candidates,
@@ -34,6 +46,7 @@ object GobangAi {
                 rootCandidateLimit = 10,
                 searchDepth = 2,
                 branchLimit = 8,
+                random = random,
             )
             AiDifficulty.HARD -> chooseSearchMove(
                 board = game.board,
@@ -42,6 +55,7 @@ object GobangAi {
                 rootCandidateLimit = 12,
                 searchDepth = 3,
                 branchLimit = 10,
+                random = random,
             )
         }
     }
@@ -50,12 +64,16 @@ object GobangAi {
         board: List<Stone?>,
         candidates: List<Position>,
         stone: Stone,
+        random: Random,
     ): Position {
         blockingMove(board, candidates, stone)?.let { return it }
-        return candidates.maxBy { position ->
-            moveScore(board, position, stone) * 10 +
-                moveScore(board, position, stone.opponent) * 9
+        val rankedCandidates = rankCandidates(board, candidates, stone).take(3)
+        val bestScore = candidateScore(board, rankedCandidates.first(), stone)
+        val tolerance = (bestScore / 100).coerceIn(200, 2_000)
+        val choices = rankedCandidates.filter { position ->
+            bestScore - candidateScore(board, position, stone) <= tolerance
         }
+        return choices.random(random)
     }
 
     private fun chooseSearchMove(
@@ -65,14 +83,14 @@ object GobangAi {
         rootCandidateLimit: Int,
         searchDepth: Int,
         branchLimit: Int,
+        random: Random,
     ): Position {
         blockingMove(board, candidates, stone)?.let { return it }
 
         val rankedCandidates = rankCandidates(board, candidates, stone).take(rootCandidateLimit)
         val mutableBoard = board.toMutableList()
-        var bestPosition = rankedCandidates.first()
         var bestScore = Int.MIN_VALUE
-        var alpha = Int.MIN_VALUE
+        val bestPositions = mutableListOf<Position>()
 
         rankedCandidates.forEach { position ->
             mutableBoard[position.index] = stone
@@ -82,19 +100,22 @@ object GobangAi {
                 aiStone = stone,
                 depth = searchDepth,
                 branchLimit = branchLimit,
-                alpha = alpha,
+                alpha = Int.MIN_VALUE,
                 beta = Int.MAX_VALUE,
                 lastMove = position,
                 lastStone = stone,
             )
             mutableBoard[position.index] = null
-            if (score > bestScore) {
-                bestScore = score
-                bestPosition = position
+            when {
+                score > bestScore -> {
+                    bestScore = score
+                    bestPositions.clear()
+                    bestPositions.add(position)
+                }
+                score == bestScore -> bestPositions.add(position)
             }
-            alpha = maxOf(alpha, bestScore)
         }
-        return bestPosition
+        return bestPositions.random(random)
     }
 
     private fun minimax(
@@ -159,12 +180,18 @@ object GobangAi {
         candidates: List<Position>,
         stone: Stone,
     ): List<Position> = candidates.sortedByDescending { position ->
-        moveScore(board, position, stone) * 10 +
-            moveScore(board, position, stone.opponent) * 9 +
-            centerBonus(position)
+        candidateScore(board, position, stone)
     }
 
-    private fun candidatePositions(board: List<Stone?>): List<Position> {
+    private fun candidateScore(
+        board: List<Stone?>,
+        position: Position,
+        stone: Stone,
+    ): Int = moveScore(board, position, stone) * 10 +
+        moveScore(board, position, stone.opponent) * 9 +
+        centerBonus(position)
+
+    private fun candidatePositions(board: List<Stone?>, radius: Int = 2): List<Position> {
         if (board.all { it == null }) return listOf(Position(BOARD_SIZE / 2, BOARD_SIZE / 2))
 
         val candidates = linkedSetOf<Position>()
@@ -172,8 +199,8 @@ object GobangAi {
             if (stone == null) return@forEachIndexed
             val row = index / BOARD_SIZE
             val column = index % BOARD_SIZE
-            for (rowOffset in -2..2) {
-                for (columnOffset in -2..2) {
+            for (rowOffset in -radius..radius) {
+                for (columnOffset in -radius..radius) {
                     val position = Position(row + rowOffset, column + columnOffset)
                     if (position.isValid && board[position.index] == null) candidates.add(position)
                 }
@@ -189,16 +216,100 @@ object GobangAi {
 
     private fun moveScore(board: List<Stone?>, position: Position, stone: Stone): Int {
         if (board[position.index] != null) return Int.MIN_VALUE
-        return directions.sumOf { (rowDelta, columnDelta) ->
-            val forward = connectedCount(board, position, stone, rowDelta, columnDelta)
-            val backward = connectedCount(board, position, stone, -rowDelta, -columnDelta)
-            val count = 1 + forward.count + backward.count
-            val openEnds = listOf(forward.end, backward.end).count { end ->
-                end.isValid && board[end.index] == null
+        var score = 0
+        var fourDirections = 0
+        var openThreeDirections = 0
+
+        directions.forEach { (rowDelta, columnDelta) ->
+            val pattern = analyzeDirection(board, position, stone, rowDelta, columnDelta)
+            if (pattern.count >= 5) return FIVE_SCORE + centerBonus(position)
+            val baseScore = patternScore(pattern.count, pattern.openEnds)
+            score += when {
+                pattern.winningPoints >= 2 -> OPEN_FOUR_SCORE
+                pattern.winningPoints == 1 -> FOUR_SCORE
+                pattern.hasOpenThree -> OPEN_THREE_SCORE
+                pattern.hasThree -> maxOf(baseScore, THREE_SCORE)
+                else -> baseScore
             }
-            patternScore(count, openEnds)
-        } + centerBonus(position)
+            if (pattern.winningPoints > 0) fourDirections++
+            if (pattern.winningPoints == 0 && pattern.hasOpenThree) openThreeDirections++
+        }
+
+        if (fourDirections >= 2) score += DOUBLE_FOUR_BONUS
+        if (fourDirections >= 1 && openThreeDirections >= 1) score += FOUR_THREE_BONUS
+        if (openThreeDirections >= 2) score += DOUBLE_THREE_BONUS
+        return score + centerBonus(position)
     }
+
+    private fun analyzeDirection(
+        board: List<Stone?>,
+        position: Position,
+        stone: Stone,
+        rowDelta: Int,
+        columnDelta: Int,
+    ): DirectionPattern {
+        val forward = connectedCount(board, position, stone, rowDelta, columnDelta)
+        val backward = connectedCount(board, position, stone, -rowDelta, -columnDelta)
+        val count = 1 + forward.count + backward.count
+        val openEnds = listOf(forward.end, backward.end).count { end ->
+            end.isValid && board[end.index] == null
+        }
+        var ownBits = 0
+        var emptyBits = 0
+        var validBits = 0
+
+        for (lineIndex in 0..LINE_RADIUS * 2) {
+            val offset = lineIndex - LINE_RADIUS
+            val current = Position(
+                position.row + rowDelta * offset,
+                position.column + columnDelta * offset,
+            )
+            if (!current.isValid) continue
+            val bit = 1 shl lineIndex
+            validBits = validBits or bit
+            val cell = if (offset == 0) stone else board[current.index]
+            if (cell == stone) ownBits = ownBits or bit
+            if (cell == null) emptyBits = emptyBits or bit
+        }
+
+        var winningPointBits = 0
+        var hasThree = false
+        for (start in 1..LINE_RADIUS) {
+            val windowMask = 0b11111 shl start
+            if (validBits and windowMask != windowMask) continue
+            val ownCount = (ownBits and windowMask).countOneBits()
+            val emptyCount = (emptyBits and windowMask).countOneBits()
+            if (ownCount == 4 && emptyCount == 1) {
+                winningPointBits = winningPointBits or (emptyBits and windowMask)
+            }
+            if (ownCount == 3 && emptyCount == 2) hasThree = true
+        }
+
+        val hasOpenThree = winningPointBits == 0 && (0..LINE_RADIUS).any { start ->
+            val windowMask = 0b111111 shl start
+            if (validBits and windowMask != windowMask) return@any false
+            val occupiedMask = (ownBits or emptyBits) and windowMask
+            occupiedMask == windowMask && openThreeMasks.any { mask ->
+                ownBits and windowMask == mask shl start
+            }
+        }
+
+        return DirectionPattern(
+            count = count,
+            openEnds = openEnds,
+            winningPoints = winningPointBits.countOneBits(),
+            hasOpenThree = hasOpenThree,
+            hasThree = hasThree,
+        )
+    }
+
+    private data class DirectionPattern(
+        val count: Int,
+        val openEnds: Int,
+        val winningPoints: Int,
+        val hasOpenThree: Boolean,
+        val hasThree: Boolean,
+    )
 
     private fun evaluateBoard(board: List<Stone?>, aiStone: Stone): Int {
         var score = 0
@@ -218,6 +329,13 @@ object GobangAi {
             }
             score += if (stone == aiStone) stoneScore else -(stoneScore * 11 / 10)
         }
+
+        val candidates = candidatePositions(board, radius = 1)
+        if (candidates.isNotEmpty()) {
+            val aiPotential = candidates.maxOf { moveScore(board, it, aiStone) }
+            val opponentPotential = candidates.maxOf { moveScore(board, it, aiStone.opponent) }
+            score += aiPotential - opponentPotential * 11 / 10
+        }
         return score
     }
 
@@ -232,8 +350,7 @@ object GobangAi {
         includeOrigin: Boolean = false,
     ): Run {
         var count = if (includeOrigin) 1 else 0
-        val start = if (includeOrigin) 1 else 1
-        var step = start
+        var step = 1
         var position = Position(origin.row + rowDelta * step, origin.column + columnDelta * step)
         while (position.isValid && board[position.index] == stone) {
             count++
@@ -244,11 +361,11 @@ object GobangAi {
     }
 
     private fun patternScore(count: Int, openEnds: Int): Int = when {
-        count >= 5 -> 10_000_000
-        count == 4 && openEnds == 2 -> 1_000_000
-        count == 4 && openEnds == 1 -> 100_000
-        count == 3 && openEnds == 2 -> 50_000
-        count == 3 && openEnds == 1 -> 5_000
+        count >= 5 -> FIVE_SCORE
+        count == 4 && openEnds == 2 -> OPEN_FOUR_SCORE
+        count == 4 && openEnds == 1 -> FOUR_SCORE
+        count == 3 && openEnds == 2 -> OPEN_THREE_SCORE
+        count == 3 && openEnds == 1 -> THREE_SCORE
         count == 2 && openEnds == 2 -> 1_000
         count == 2 && openEnds == 1 -> 100
         count == 1 && openEnds == 2 -> 10
