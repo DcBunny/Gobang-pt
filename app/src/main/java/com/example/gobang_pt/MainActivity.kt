@@ -3,7 +3,6 @@ package com.example.gobang_pt
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.Animatable
@@ -116,64 +115,12 @@ fun GobangScreen() {
     var requestedDifficulty by remember { mutableStateOf<AiDifficulty?>(null) }
     var isReviewing by rememberSaveable { mutableStateOf(false) }
     var reviewMoveCount by rememberSaveable { mutableStateOf(0) }
-    var showLearningCenter by rememberSaveable { mutableStateOf(false) }
-    var learningCategory by rememberSaveable { mutableStateOf(LearningCategory.CLASSIC) }
-    var selectedClassicGameId by rememberSaveable { mutableStateOf<String?>(null) }
-    var classicReviewMoveCount by rememberSaveable { mutableStateOf(0) }
-    var selectedPatternLessonId by rememberSaveable { mutableStateOf<String?>(null) }
-    var patternPlaybackFrameIndex by rememberSaveable { mutableStateOf(0) }
-    var selectedLayoutLessonId by rememberSaveable { mutableStateOf<String?>(null) }
-    var layoutPlaybackFrameIndex by rememberSaveable { mutableStateOf(0) }
-    var selectedPracticeLessonId by rememberSaveable { mutableStateOf<String?>(null) }
-    var practiceMoves by rememberSaveable { mutableStateOf("") }
-    var showPracticeHint by rememberSaveable { mutableStateOf(false) }
-    var isPracticeThinking by remember { mutableStateOf(false) }
     val currentReviewMoveCount = reviewMoveCount.coerceIn(0, game.moves.size)
     val displayedGame = if (isReviewing) game.replayTo(currentReviewMoveCount) else game
-    val selectedClassicGame = classicGames.firstOrNull { it.id == selectedClassicGameId }
-    val selectedPatternLesson = patternLessons.firstOrNull { it.id == selectedPatternLessonId }
-    val selectedLayoutLesson = layoutLessons.firstOrNull { it.id == selectedLayoutLessonId }
-    val selectedPractice = practiceScenarios.firstOrNull { it.id == selectedPracticeLessonId }
-    val practiceGame = selectedPractice?.replay(practiceMoves)
-    val resetPatternPlayback = { patternPlaybackFrameIndex = 0 }
-    val resetLayoutLesson = { layoutPlaybackFrameIndex = 0 }
-    val resetPractice = {
-        practiceMoves = ""
-        showPracticeHint = false
-    }
-    val onBackToGame = {
-        showLearningCenter = false
-        selectedClassicGameId = null
-        selectedPatternLessonId = null
-        selectedLayoutLessonId = null
-        selectedPracticeLessonId = null
-        resetPatternPlayback()
-        resetLayoutLesson()
-        resetPractice()
-    }
 
-    BackHandler(enabled = showLearningCenter) {
-        when {
-            selectedPractice != null -> {
-                selectedPracticeLessonId = null
-                resetPractice()
-            }
-            selectedClassicGame != null -> selectedClassicGameId = null
-            selectedPatternLesson != null -> {
-                selectedPatternLessonId = null
-                resetPatternPlayback()
-            }
-            selectedLayoutLesson != null -> {
-                selectedLayoutLessonId = null
-                resetLayoutLesson()
-            }
-            else -> onBackToGame()
-        }
-    }
-
-    LaunchedEffect(game, gameMode, aiDifficulty, isReviewing, showLearningCenter) {
+    LaunchedEffect(game, gameMode, aiDifficulty, isReviewing) {
         isAiThinking = false
-        if (gameMode == GameMode.VS_AI && !isReviewing && !showLearningCenter &&
+        if (gameMode == GameMode.VS_AI && !isReviewing &&
             !game.isOver && game.currentPlayer == Stone.WHITE
         ) {
             isAiThinking = true
@@ -186,24 +133,6 @@ fun GobangScreen() {
             if (remainingThinkingTime > 0) delay(remainingThinkingTime)
             if (aiMove != null) game = game.play(aiMove)
             isAiThinking = false
-        }
-    }
-
-    LaunchedEffect(selectedPracticeLessonId, practiceGame, showLearningCenter) {
-        if (showLearningCenter && selectedPractice != null && practiceGame != null &&
-            practiceGame.currentPlayer == Stone.WHITE && !practiceGame.isOver
-        ) {
-            isPracticeThinking = true
-            val thinkingStartedAt = SystemClock.elapsedRealtime()
-            val aiMove = withContext(Dispatchers.Default) {
-                selectedPractice.chooseWhiteMove(practiceGame)
-            }
-            val remainingThinkingTime = 500L - (SystemClock.elapsedRealtime() - thinkingStartedAt)
-            if (remainingThinkingTime > 0) delay(remainingThinkingTime)
-            if (aiMove != null) practiceMoves = selectedPractice.encode(practiceGame.play(aiMove))
-            isPracticeThinking = false
-        } else {
-            isPracticeThinking = false
         }
     }
 
@@ -254,125 +183,7 @@ fun GobangScreen() {
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (showLearningCenter && selectedClassicGame != null) {
-                ClassicGameReviewScreen(
-                    classicGame = selectedClassicGame,
-                    moveCount = classicReviewMoveCount,
-                    onPreviousMove = {
-                        classicReviewMoveCount = (classicReviewMoveCount - 1)
-                            .coerceAtLeast(0)
-                    },
-                    onNextMove = {
-                        classicReviewMoveCount = (classicReviewMoveCount + 1)
-                            .coerceAtMost(selectedClassicGame.moves.size)
-                    },
-                    onBackToList = { selectedClassicGameId = null },
-                    onBackToGame = onBackToGame,
-                )
-            } else if (showLearningCenter && selectedPatternLesson != null) {
-                val playback = selectedPatternLesson.toPlayback()
-                LessonPlaybackScreen(
-                    playback = playback,
-                    frameIndex = patternPlaybackFrameIndex,
-                    onPreviousFrame = {
-                        patternPlaybackFrameIndex = (patternPlaybackFrameIndex - 1).coerceAtLeast(0)
-                    },
-                    onNextFrame = {
-                        patternPlaybackFrameIndex = (patternPlaybackFrameIndex + 1)
-                            .coerceAtMost(playback.frames.lastIndex)
-                    },
-                    onBackToList = {
-                        selectedPatternLessonId = null
-                        resetPatternPlayback()
-                    },
-                    onBackToGame = onBackToGame,
-                )
-            } else if (showLearningCenter && selectedPractice != null && practiceGame != null) {
-                PracticeGameScreen(
-                    scenario = selectedPractice,
-                    game = practiceGame,
-                    analysis = PracticeCoach.analyze(selectedPractice, practiceGame),
-                    isAiThinking = isPracticeThinking,
-                    showHint = showPracticeHint,
-                    recommendation = if (showPracticeHint) {
-                        PracticeCoach.recommend(selectedPractice, practiceGame)
-                    } else {
-                        null
-                    },
-                    onPositionClick = { position ->
-                        if (!isPracticeThinking && practiceGame.currentPlayer == Stone.BLACK && !practiceGame.isOver) {
-                            val updated = practiceGame.play(position)
-                            if (updated !== practiceGame) {
-                                practiceMoves = selectedPractice.encode(updated)
-                                showPracticeHint = false
-                            }
-                        }
-                    },
-                    onToggleHint = { showPracticeHint = !showPracticeHint },
-                    onUndo = {
-                        if (!isPracticeThinking && practiceGame.moves.isNotEmpty()) {
-                            practiceMoves = selectedPractice.encode(selectedPractice.undo(practiceGame))
-                            showPracticeHint = false
-                        }
-                    },
-                    onRestart = resetPractice,
-                    onNextScenario = practiceScenarios.indexOf(selectedPractice)
-                        .takeIf { it in 0 until practiceScenarios.lastIndex }
-                        ?.let { index ->
-                            {
-                                val nextScenario = practiceScenarios[index + 1]
-                                selectedLayoutLessonId = nextScenario.id
-                                selectedPracticeLessonId = nextScenario.id
-                                resetLayoutLesson()
-                                resetPractice()
-                            }
-                        },
-                    onBackToLayout = {
-                        selectedPracticeLessonId = null
-                        resetPractice()
-                    },
-                )
-            } else if (showLearningCenter && selectedLayoutLesson != null) {
-                val playback = selectedLayoutLesson.toPlayback()
-                LessonPlaybackScreen(
-                    playback = playback,
-                    frameIndex = layoutPlaybackFrameIndex,
-                    onPreviousFrame = {
-                        layoutPlaybackFrameIndex = (layoutPlaybackFrameIndex - 1).coerceAtLeast(0)
-                    },
-                    onNextFrame = {
-                        layoutPlaybackFrameIndex = (layoutPlaybackFrameIndex + 1)
-                            .coerceAtMost(playback.frames.lastIndex)
-                    },
-                    onBackToList = {
-                        selectedLayoutLessonId = null
-                        resetLayoutLesson()
-                    },
-                    onBackToGame = onBackToGame,
-                    onStartPractice = {
-                        selectedPracticeLessonId = selectedLayoutLesson.id
-                        resetPractice()
-                    },
-                )
-            } else if (showLearningCenter) {
-                LearningHomeScreen(
-                    selectedCategory = learningCategory,
-                    onCategoryChange = { learningCategory = it },
-                    onSelectGame = { classicGame ->
-                        selectedClassicGameId = classicGame.id
-                        classicReviewMoveCount = 0
-                    },
-                    onSelectLesson = { lesson ->
-                        selectedPatternLessonId = lesson.id
-                        resetPatternPlayback()
-                    },
-                    onSelectLayoutLesson = { lesson ->
-                        selectedLayoutLessonId = lesson.id
-                        resetLayoutLesson()
-                    },
-                    onBackToGame = onBackToGame,
-                )
-            } else if (maxWidth >= 700.dp && maxWidth > maxHeight) {
+            if (maxWidth >= 700.dp && maxWidth > maxHeight) {
                 ExpandedGobangLayout(
                     game = displayedGame,
                     gameMode = gameMode,
@@ -385,16 +196,6 @@ fun GobangScreen() {
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
-                    onOpenLearning = {
-                        showLearningCenter = true
-                        selectedClassicGameId = null
-                        selectedPatternLessonId = null
-                        selectedLayoutLessonId = null
-                        selectedPracticeLessonId = null
-                        resetPatternPlayback()
-                        resetLayoutLesson()
-                        resetPractice()
-                    },
                     onGameModeChange = onGameModeChange,
                     onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
@@ -414,16 +215,6 @@ fun GobangScreen() {
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
-                    onOpenLearning = {
-                        showLearningCenter = true
-                        selectedClassicGameId = null
-                        selectedPatternLessonId = null
-                        selectedLayoutLessonId = null
-                        selectedPracticeLessonId = null
-                        resetPatternPlayback()
-                        resetLayoutLesson()
-                        resetPractice()
-                    },
                     onGameModeChange = onGameModeChange,
                     onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
@@ -510,7 +301,6 @@ private fun CompactGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
-    onOpenLearning: () -> Unit,
     onGameModeChange: (GameMode) -> Unit,
     onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
@@ -561,7 +351,6 @@ private fun CompactGobangLayout(
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
-                    onOpenLearning = onOpenLearning,
                     enabled = !isAiThinking,
                     modifier = Modifier.padding(top = 20.dp),
                 )
@@ -584,7 +373,6 @@ private fun ExpandedGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
-    onOpenLearning: () -> Unit,
     onGameModeChange: (GameMode) -> Unit,
     onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
@@ -644,7 +432,6 @@ private fun ExpandedGobangLayout(
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
-                    onOpenLearning = onOpenLearning,
                     enabled = !isAiThinking,
                 )
             }
@@ -797,7 +584,6 @@ private fun GameActions(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
-    onOpenLearning: () -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -818,24 +604,12 @@ private fun GameActions(
                 Text(stringResource(R.string.restart))
             }
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(top = 8.dp),
+        OutlinedButton(
+            onClick = onStartReview,
+            enabled = enabled && game.moves.isNotEmpty(),
+            modifier = Modifier.padding(top = 8.dp).testTag("review_button"),
         ) {
-            OutlinedButton(
-                onClick = onStartReview,
-                enabled = enabled && game.moves.isNotEmpty(),
-                modifier = Modifier.testTag("review_button"),
-            ) {
-                Text(stringResource(R.string.review))
-            }
-            OutlinedButton(
-                onClick = onOpenLearning,
-                enabled = enabled,
-                modifier = Modifier.testTag("learning_home_button"),
-            ) {
-                Text(stringResource(R.string.learning_home))
-            }
+            Text(stringResource(R.string.review))
         }
     }
 }
@@ -847,8 +621,6 @@ internal fun ReviewActions(
     onPreviousMove: () -> Unit,
     onNextMove: () -> Unit,
     onExitReview: () -> Unit,
-    exitLabelResource: Int = R.string.exit_review,
-    exitTestTag: String = "exit_review_button",
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -870,9 +642,9 @@ internal fun ReviewActions(
         }
         TextButton(
             onClick = onExitReview,
-            modifier = Modifier.padding(top = 4.dp).testTag(exitTestTag),
+            modifier = Modifier.padding(top = 4.dp).testTag("exit_review_button"),
         ) {
-            Text(stringResource(exitLabelResource))
+            Text(stringResource(R.string.exit_review))
         }
     }
 }
@@ -930,18 +702,12 @@ internal fun GobangBoard(
     game: GobangGame,
     onPositionClick: (Position) -> Unit,
     isInteractive: Boolean = true,
-    showLastMove: Boolean = true,
-    highlightedPositions: Set<Position> = emptySet(),
-    highlightColor: Color = LastMoveColor,
-    boardDescriptionResource: Int = if (isInteractive) {
-        R.string.board_description
-    } else {
-        R.string.review_board_description
-    },
     modifier: Modifier = Modifier,
 ) {
-    val boardDescription = stringResource(boardDescriptionResource)
-    val lastMove = if (showLastMove) game.moves.lastOrNull() else null
+    val boardDescription = stringResource(
+        if (isInteractive) R.string.board_description else R.string.review_board_description,
+    )
+    val lastMove = game.moves.lastOrNull()
     val moveHighlightProgress = remember { Animatable(1f) }
     LaunchedEffect(lastMove) {
         if (lastMove == null) {
@@ -1022,26 +788,6 @@ internal fun GobangBoard(
                 center = center,
                 style = Stroke(width = lineWidth),
             )
-        }
-
-        highlightedPositions.forEach { position ->
-            val center = Offset(
-                step * (position.column + 1),
-                step * (position.row + 1),
-            )
-            drawCircle(
-                color = highlightColor,
-                radius = step * 0.49f,
-                center = center,
-                style = Stroke(width = step * 0.05f),
-            )
-            if (game.stoneAt(position) == null) {
-                drawCircle(
-                    color = highlightColor,
-                    radius = step * 0.08f,
-                    center = center,
-                )
-            }
         }
 
         lastMove?.let { move ->
