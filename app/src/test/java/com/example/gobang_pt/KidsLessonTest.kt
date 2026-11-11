@@ -9,8 +9,8 @@ import org.junit.Test
 class KidsLessonTest {
     @Test
     fun catalogHasOrderedUniqueLessonsAcrossEveryStage() {
-        assertEquals(8, kidsLessons.size)
-        assertEquals((1..8).toList(), kidsLessons.map(KidsLesson::order))
+        assertEquals(14, kidsLessons.size)
+        assertEquals((1..14).toList(), kidsLessons.map(KidsLesson::order))
         assertEquals(kidsLessons.size, kidsLessons.map(KidsLesson::id).distinct().size)
 
         KidsStage.entries.forEach { stage ->
@@ -90,6 +90,52 @@ class KidsLessonTest {
                             )
                         }
                         KidsTarget.CENTER -> assertEquals(Position(7, 7), answer)
+                        KidsTarget.CLOSED_FOUR -> {
+                            val patterns = GobangShapes.analyzeMove(board, answer, Stone.BLACK)
+                            assertTrue(
+                                "${lesson.id} step $stepIndex answer $answer needs a closed four",
+                                patterns.any { it.winningPoints == 1 },
+                            )
+                            assertFalse(
+                                "${lesson.id} step $stepIndex answer $answer must not be an open four",
+                                patterns.any { it.winningPoints >= 2 },
+                            )
+                        }
+                        KidsTarget.DOUBLE_FOUR -> assertTrue(
+                            "${lesson.id} step $stepIndex answer $answer needs two fours",
+                            GobangShapes.analyzeMove(board, answer, Stone.BLACK)
+                                .count { it.winningPoints > 0 } >= 2,
+                        )
+                        KidsTarget.BLOCK_AND_ATTACK -> {
+                            val beforeGame = before.toGobangGame()
+                            assertTrue(
+                                "${lesson.id} step $stepIndex answer $answer must block a white win",
+                                answer in GobangShapes.immediateWinningMoves(beforeGame.board, Stone.WHITE),
+                            )
+                            val after = before.withBlack(answer).toGobangGame().board
+                            assertTrue(
+                                "${lesson.id} step $stepIndex answer $answer must remove white wins",
+                                GobangShapes.immediateWinningMoves(after, Stone.WHITE).isEmpty(),
+                            )
+                            assertTrue(
+                                "${lesson.id} step $stepIndex answer $answer must also attack",
+                                GobangShapes.analyzeMove(beforeGame.board, answer, Stone.BLACK)
+                                    .any { it.hasOpenThree },
+                            )
+                        }
+                        KidsTarget.BLOCK_DOUBLE_THREE -> {
+                            val beforeGame = before.toGobangGame()
+                            assertTrue(
+                                "${lesson.id} step $stepIndex answer $answer must break a white double three",
+                                GobangShapes.analyzeMove(beforeGame.board, answer, Stone.WHITE)
+                                    .count { it.hasOpenThree } >= 2,
+                            )
+                            val after = before.withBlack(answer).toGobangGame().board
+                            assertTrue(
+                                "${lesson.id} step $stepIndex answer $answer must remove white wins",
+                                GobangShapes.immediateWinningMoves(after, Stone.WHITE).isEmpty(),
+                            )
+                        }
                     }
                 }
             }
@@ -163,6 +209,98 @@ class KidsLessonTest {
         assertFalse(
             GobangShapes.analyzeMove(board, closedTwo, Stone.BLACK)
                 .any { it.count == 2 && it.openEnds == 2 },
+        )
+    }
+
+    @Test
+    fun advancedVcfForcesEveryWhiteReply() {
+        val lesson = kidsLessons.first { it.id == "vcf_continuous_four" }
+
+        val firstStep = lesson.steps[0]
+        val afterFirst = sessionAt(lesson, 0).position.withBlack(canonical(firstStep))
+        assertEquals(
+            setOf(lessonPoint("j8")),
+            GobangShapes.immediateWinningMoves(afterFirst.toGobangGame().board, Stone.BLACK).toSet(),
+        )
+        assertEquals(lessonPoint("j8"), firstStep.whiteReply)
+
+        val secondStep = lesson.steps[1]
+        val afterSecond = sessionAt(lesson, 1).position.withBlack(canonical(secondStep))
+        assertEquals(
+            setOf(lessonPoint("j10")),
+            GobangShapes.immediateWinningMoves(afterSecond.toGobangGame().board, Stone.BLACK).toSet(),
+        )
+        assertEquals(lessonPoint("j10"), secondStep.whiteReply)
+
+        val finalStep = lesson.steps[2]
+        val finalBoard = sessionAt(lesson, 2).position.toGobangGame().board
+        finalStep.answers.forEach { answer ->
+            assertTrue(
+                "${lesson.id} final answer $answer",
+                GobangShapes.analyzeMove(finalBoard, answer, Stone.BLACK)
+                    .any { it.winningPoints >= 2 },
+            )
+        }
+    }
+
+    @Test
+    fun doubleFourLessonHasTwoWinningPoints() {
+        val lesson = kidsLessons.first { it.id == "double_four" }
+        val step = lesson.steps.first()
+        val answer = canonical(step)
+        val before = sessionAt(lesson, 0).position
+        val patterns = GobangShapes.analyzeMove(before.toGobangGame().board, answer, Stone.BLACK)
+
+        assertEquals(2, patterns.count { it.winningPoints > 0 })
+        assertEquals(
+            setOf(lessonPoint("h9"), lessonPoint("j6")),
+            GobangShapes.immediateWinningMoves(
+                before.withBlack(answer).toGobangGame().board,
+                Stone.BLACK,
+            ).toSet(),
+        )
+    }
+
+    @Test
+    fun defendAndAttackLessonBlocksTheOnlyWhiteWin() {
+        val lesson = kidsLessons.first { it.id == "defend_and_attack" }
+        val step = lesson.steps.first()
+        val answer = canonical(step)
+        val before = sessionAt(lesson, 0).position
+
+        assertEquals(
+            setOf(answer),
+            GobangShapes.immediateWinningMoves(before.toGobangGame().board, Stone.WHITE).toSet(),
+        )
+        assertTrue(
+            GobangShapes.immediateWinningMoves(
+                before.withBlack(answer).toGobangGame().board,
+                Stone.WHITE,
+            ).isEmpty(),
+        )
+        assertTrue(
+            GobangShapes.analyzeMove(before.toGobangGame().board, answer, Stone.BLACK)
+                .any { it.hasOpenThree },
+        )
+    }
+
+    @Test
+    fun blockDoubleThreeLessonRemovesTheThreat() {
+        val lesson = kidsLessons.first { it.id == "block_double_three" }
+        val step = lesson.steps.first()
+        val answer = canonical(step)
+        val before = sessionAt(lesson, 0).position
+
+        assertEquals(
+            2,
+            GobangShapes.analyzeMove(before.toGobangGame().board, answer, Stone.WHITE)
+                .count { it.hasOpenThree },
+        )
+        assertTrue(
+            GobangShapes.immediateWinningMoves(
+                before.withBlack(answer).toGobangGame().board,
+                Stone.WHITE,
+            ).isEmpty(),
         )
     }
 

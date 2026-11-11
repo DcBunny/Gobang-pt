@@ -42,7 +42,7 @@
     <string name="exit_review">退出复盘</string>
 
     <string name="kids_learning_entry">学棋小课堂</string>
-    <string name="kids_learning_entry_hint">8 个教学棋局，学会找胜点、做棋型</string>
+    <string name="kids_learning_entry_hint">14 个教学棋局，从基础到进阶</string>
     <string name="kids_learning_title">学棋小课堂</string>
     <string name="kids_learning_subtitle">一关学一个棋型，学会像小棋手一样思考</string>
     <string name="kids_progress">⭐ 已通关 %1$d / %2$d 关</string>
@@ -56,6 +56,8 @@
     <string name="kids_stage_grow">第二站 · 让棋子长大</string>
     <string name="kids_stage_combine">第三站 · 学会组合进攻</string>
     <string name="kids_stage_opening">第四站 · 开局布局</string>
+    <string name="kids_stage_advanced_patterns">第五站 · 棋型进阶</string>
+    <string name="kids_stage_advanced_tactics">第六站 · 连续与防守</string>
 
     <string name="kids_target_five">成五</string>
     <string name="kids_target_block">挡五</string>
@@ -65,6 +67,10 @@
     <string name="kids_target_double_three">双三</string>
     <string name="kids_target_four_three">四三</string>
     <string name="kids_target_center">占中心</string>
+    <string name="kids_target_closed_four">冲四</string>
+    <string name="kids_target_double_four">双四</string>
+    <string name="kids_target_block_and_attack">防反</string>
+    <string name="kids_target_block_double_three">拆双三</string>
 
     <string name="kids_back_to_game">← 返回对局</string>
     <string name="kids_back_to_list">回到关卡列表</string>

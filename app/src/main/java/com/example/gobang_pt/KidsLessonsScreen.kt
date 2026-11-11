@@ -60,6 +60,7 @@ internal fun KidsLessonsScreen(
 ) {
     var completedIds by remember { mutableStateOf(progress.completedLessonIds()) }
     val selectedLesson = lessons.firstOrNull { it.id == selectedLessonId }
+    val allLessonsCompleted = lessons.isNotEmpty() && lessons.all { it.id in completedIds }
 
     Box(modifier = modifier.fillMaxSize().testTag("kids_lessons_screen")) {
         if (selectedLesson == null) {
@@ -75,6 +76,7 @@ internal fun KidsLessonsScreen(
                 KidsLessonPlayer(
                     lesson = selectedLesson,
                     nextLesson = nextLesson,
+                    allLessonsCompleted = allLessonsCompleted,
                     onCompleted = { lessonId ->
                         if (lessonId !in completedIds) {
                             progress.markCompleted(lessonId)
@@ -267,6 +269,7 @@ private fun KidsLessonCard(
 private fun KidsLessonPlayer(
     lesson: KidsLesson,
     nextLesson: KidsLesson?,
+    allLessonsCompleted: Boolean,
     onCompleted: (String) -> Unit,
     onBackToList: () -> Unit,
     onNextLesson: (KidsLesson) -> Unit,
@@ -385,6 +388,7 @@ private fun KidsLessonPlayer(
                         KidsCompletionCard(
                             lesson = lesson,
                             nextLesson = nextLesson,
+                            allLessonsCompleted = allLessonsCompleted,
                             onReplay = onReplay,
                             onNextLesson = onNextLesson,
                             onBackToList = onBackToList,
@@ -447,6 +451,7 @@ private fun KidsLessonPlayer(
                         KidsCompletionCard(
                             lesson = lesson,
                             nextLesson = nextLesson,
+                            allLessonsCompleted = allLessonsCompleted,
                             onReplay = onReplay,
                             onNextLesson = onNextLesson,
                             onBackToList = onBackToList,
@@ -683,6 +688,7 @@ private fun KidsActions(
 private fun KidsCompletionCard(
     lesson: KidsLesson,
     nextLesson: KidsLesson?,
+    allLessonsCompleted: Boolean,
     onReplay: () -> Unit,
     onNextLesson: (KidsLesson) -> Unit,
     onBackToList: () -> Unit,
@@ -697,7 +703,11 @@ private fun KidsCompletionCard(
         Column(Modifier.padding(16.dp)) {
             Text(
                 text = stringResource(
-                    if (nextLesson == null) R.string.kids_all_completed else R.string.kids_completed_title,
+                    if (nextLesson == null && allLessonsCompleted) {
+                        R.string.kids_all_completed
+                    } else {
+                        R.string.kids_completed_title
+                    },
                 ),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,

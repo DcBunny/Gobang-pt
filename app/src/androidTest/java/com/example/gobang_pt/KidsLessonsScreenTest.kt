@@ -30,7 +30,9 @@ class KidsLessonsScreenTest {
         composeRule.onNodeWithText("第二站 · 让棋子长大").assertExists()
         composeRule.onNodeWithText("第三站 · 学会组合进攻").assertExists()
         composeRule.onNodeWithText("第四站 · 开局布局").assertExists()
-        composeRule.onNodeWithText("已通关 0 / 8 关", substring = true).assertExists()
+        composeRule.onNodeWithText("第五站 · 棋型进阶").assertExists()
+        composeRule.onNodeWithText("第六站 · 连续与防守").assertExists()
+        composeRule.onNodeWithText("已通关 0 / 14 关", substring = true).assertExists()
 
         kidsLessons.forEach { lesson ->
             composeRule.onNodeWithTag("kids_lesson_${lesson.id}").performScrollTo().assertExists()
@@ -55,7 +57,7 @@ class KidsLessonsScreenTest {
         composeRule.onNodeWithText("你学会了：活四").assertExists()
 
         composeRule.onNodeWithTag("kids_completion_back_button").performScrollTo().performClick()
-        composeRule.onNodeWithText("已通关 1 / 8 关", substring = true).assertExists()
+        composeRule.onNodeWithText("已通关 1 / 14 关", substring = true).assertExists()
         composeRule.onNodeWithTag("kids_lesson_make_open_four").performScrollTo().assertExists()
         composeRule.onNodeWithText("⭐ 已通关 · 再玩一次").assertExists()
     }
@@ -81,6 +83,49 @@ class KidsLessonsScreenTest {
     }
 
     @Test
+    fun advancedVcfLessonPlaysForcedSequence() {
+        setKidsContent()
+        openLesson("vcf_continuous_four")
+
+        tapBoard(7, 7)
+        composeRule.onNodeWithTag("kids_lesson_correct_feedback").assertExists()
+        composeRule.onNodeWithText("白棋只能去挡 J8。", substring = true).assertExists()
+        composeRule.onNodeWithTag("kids_lesson_continue_button").performScrollTo().performClick()
+
+        tapBoard(8, 8)
+        composeRule.onNodeWithTag("kids_lesson_correct_feedback").assertExists()
+        composeRule.onNodeWithText("白棋只能去挡 J10。", substring = true).assertExists()
+        composeRule.onNodeWithTag("kids_lesson_continue_button").performScrollTo().performClick()
+
+        tapBoard(8, 7)
+        composeRule.onNodeWithTag("kids_completion_card").assertExists()
+        composeRule.onNodeWithText("你学会了：连续冲四").assertExists()
+    }
+
+    @Test
+    fun advancedDefenseLessonBlocksDoubleThree() {
+        setKidsContent()
+        openLesson("block_double_three")
+
+        tapBoard(7, 7)
+        composeRule.onNodeWithTag("kids_completion_card").assertExists()
+        composeRule.onNodeWithText("你学会了：拆双三").assertExists()
+        composeRule.onNodeWithText("🎉 通关啦！").assertExists()
+        composeRule.onNodeWithText("全部通关", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun lastLessonShowsAllCompleteOnlyWhenEveryLessonIsDone() {
+        val previousLessons = kidsLessons.dropLast(1).map { it.id }.toSet()
+        setKidsContent(progress = InMemoryKidsProgress(previousLessons))
+        openLesson("block_double_three")
+
+        tapBoard(7, 7)
+        composeRule.onNodeWithTag("kids_completion_card").assertExists()
+        composeRule.onNodeWithText("全部通关", substring = true).assertExists()
+    }
+
+    @Test
     fun replayResetsTheLessonAndKeepsTheStar() {
         setKidsContent()
         openLesson("make_open_four")
@@ -94,7 +139,7 @@ class KidsLessonsScreenTest {
         composeRule.onNodeWithTag("kids_lesson_board").assertExists()
 
         composeRule.onNodeWithTag("kids_lesson_back_to_list_button").performScrollTo().performClick()
-        composeRule.onNodeWithText("已通关 1 / 8 关", substring = true).assertExists()
+        composeRule.onNodeWithText("已通关 1 / 14 关", substring = true).assertExists()
     }
 
     private fun setKidsContent(progress: KidsProgressStore = InMemoryKidsProgress()) {
@@ -119,7 +164,10 @@ class KidsLessonsScreenTest {
     }
 
     private fun tapBoard(row: Int, column: Int) {
-        composeRule.onNodeWithTag("kids_lesson_board").performScrollTo().performTouchInput {
+        val board = composeRule.onNodeWithTag("kids_lesson_board")
+        // 手机竖屏的棋盘在滚动列里，平板横屏的棋盘在固定左栏里。
+        runCatching { board.performScrollTo() }
+        board.performTouchInput {
             val step = width / (BOARD_SIZE + 1f)
             click(Offset(step * (column + 1), step * (row + 1)))
         }
@@ -146,7 +194,10 @@ class KidsLessonsRotationTest {
     }
 
     private fun tapBoard(row: Int, column: Int) {
-        composeRule.onNodeWithTag("kids_lesson_board").performScrollTo().performTouchInput {
+        val board = composeRule.onNodeWithTag("kids_lesson_board")
+        // 手机竖屏的棋盘在滚动列里，平板横屏的棋盘在固定左栏里。
+        runCatching { board.performScrollTo() }
+        board.performTouchInput {
             val step = width / (BOARD_SIZE + 1f)
             click(Offset(step * (column + 1), step * (row + 1)))
         }
