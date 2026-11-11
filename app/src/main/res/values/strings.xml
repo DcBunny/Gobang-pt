@@ -40,4 +40,57 @@
     <string name="previous_move">上一手</string>
     <string name="next_move">下一手</string>
     <string name="exit_review">退出复盘</string>
+
+    <string name="kids_learning_entry">学棋小课堂</string>
+    <string name="kids_learning_entry_hint">8 个教学棋局，学会找胜点、做棋型</string>
+    <string name="kids_learning_title">学棋小课堂</string>
+    <string name="kids_learning_subtitle">一关学一个棋型，学会像小棋手一样思考</string>
+    <string name="kids_progress">⭐ 已通关 %1$d / %2$d 关</string>
+    <string name="kids_how_to_play">点棋盘落子；答错可以再试；不知道就点“给我提示”。</string>
+    <string name="kids_thinking_title">下棋前，先问自己三句话</string>
+    <string name="kids_thinking_one">1. 对手有没有四？先挡住！</string>
+    <string name="kids_thinking_two">2. 我能不能成五？能就直接赢！</string>
+    <string name="kids_thinking_three">3. 哪一步能同时连出两条线？</string>
+
+    <string name="kids_stage_connect">第一站 · 连五和防守</string>
+    <string name="kids_stage_grow">第二站 · 让棋子长大</string>
+    <string name="kids_stage_combine">第三站 · 学会组合进攻</string>
+    <string name="kids_stage_opening">第四站 · 开局布局</string>
+
+    <string name="kids_target_five">成五</string>
+    <string name="kids_target_block">挡五</string>
+    <string name="kids_target_open_two">活二</string>
+    <string name="kids_target_open_three">活三</string>
+    <string name="kids_target_open_four">活四</string>
+    <string name="kids_target_double_three">双三</string>
+    <string name="kids_target_four_three">四三</string>
+    <string name="kids_target_center">占中心</string>
+
+    <string name="kids_back_to_game">← 返回对局</string>
+    <string name="kids_back_to_list">回到关卡列表</string>
+    <string name="kids_lesson_index">第 %1$d 关</string>
+    <string name="kids_lesson_start">开始闯关 →</string>
+    <string name="kids_lesson_completed">⭐ 已通关 · 再玩一次</string>
+    <string name="kids_lesson_pattern">棋型：%1$s</string>
+    <string name="kids_lesson_target">目标：%1$s</string>
+    <string name="kids_lesson_step_progress">第 %1$d 步 / 共 %2$d 步</string>
+    <string name="kids_lesson_rule_title">棋型小知识</string>
+    <string name="kids_lesson_thinking_title">小棋手想一想</string>
+    <string name="kids_hint_button">💡 给我提示</string>
+    <string name="kids_hint_prefix">提示：%1$s</string>
+    <string name="kids_correct_title">✅ 下对了！</string>
+    <string name="kids_wrong_title">再想一想</string>
+    <string name="kids_continue">下一步</string>
+    <string name="kids_white_reply">对手回应：%1$s</string>
+    <string name="kids_completed_title">🎉 通关啦！</string>
+    <string name="kids_completed_star">⭐ 你获得了一颗星</string>
+    <string name="kids_completed_pattern">你学会了：%1$s</string>
+    <string name="kids_all_completed">🎉 全部通关！你已经是小棋手啦！</string>
+    <string name="kids_replay">再玩一次</string>
+    <string name="kids_next_lesson">下一关</string>
+    <string name="kids_board_description">五子棋教学棋盘，点击交叉点落子</string>
+    <string name="kids_board_description_completed">五子棋教学棋盘，本关已完成</string>
+    <string name="kids_board_legend">蓝圈 = 你下的棋　红圈 = 对手回应</string>
+    <string name="kids_board_legend_hint">蓝圈 = 你下的棋　红圈 = 对手回应　绿圈 = 提示点</string>
+    <string name="kids_occupied_message">这里已经有棋子啦，换一个空点吧。</string>
 </resources>

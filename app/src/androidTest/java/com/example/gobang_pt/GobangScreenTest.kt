@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import org.junit.Rule
 import org.junit.Test
@@ -199,8 +200,17 @@ class GobangScreenTest {
     }
 
     @Test
-    fun learningCenterEntryIsNotShown() {
-        composeRule.onNodeWithTag("learning_home_button").assertDoesNotExist()
+    fun kidsLearningEntryOpensLessonListAndReturnsToGame() {
+        tapIntersection(7, 7)
+        composeRule.onNodeWithText("已落子 1 手").assertExists()
+
+        composeRule.onNodeWithTag("kids_lessons_button").performScrollTo().performClick()
+        composeRule.onNodeWithText("学棋小课堂").assertExists()
+        composeRule.onNodeWithTag("kids_lesson_five_in_a_row").performScrollTo().assertExists()
+
+        composeRule.onNodeWithTag("kids_back_to_game_button").performClick()
+        composeRule.onNodeWithText("已落子 1 手").assertExists()
+        composeRule.onNodeWithText("轮到白方落子").assertExists()
     }
 
     private fun waitForMoveCount(moveCount: Int) {

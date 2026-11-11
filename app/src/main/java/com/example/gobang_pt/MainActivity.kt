@@ -3,6 +3,7 @@ package com.example.gobang_pt
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.Animatable
@@ -54,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -115,12 +117,24 @@ fun GobangScreen() {
     var requestedDifficulty by remember { mutableStateOf<AiDifficulty?>(null) }
     var isReviewing by rememberSaveable { mutableStateOf(false) }
     var reviewMoveCount by rememberSaveable { mutableStateOf(0) }
+    var showKidsLessons by rememberSaveable { mutableStateOf(false) }
+    var selectedKidsLessonId by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val kidsProgress = remember { SharedPreferencesKidsProgress(context.applicationContext) }
     val currentReviewMoveCount = reviewMoveCount.coerceIn(0, game.moves.size)
     val displayedGame = if (isReviewing) game.replayTo(currentReviewMoveCount) else game
 
-    LaunchedEffect(game, gameMode, aiDifficulty, isReviewing) {
+    BackHandler(enabled = showKidsLessons) {
+        if (selectedKidsLessonId != null) {
+            selectedKidsLessonId = null
+        } else {
+            showKidsLessons = false
+        }
+    }
+
+    LaunchedEffect(game, gameMode, aiDifficulty, isReviewing, showKidsLessons) {
         isAiThinking = false
-        if (gameMode == GameMode.VS_AI && !isReviewing &&
+        if (gameMode == GameMode.VS_AI && !isReviewing && !showKidsLessons &&
             !game.isOver && game.currentPlayer == Stone.WHITE
         ) {
             isAiThinking = true
@@ -177,13 +191,31 @@ fun GobangScreen() {
         }
     }
 
+    val onOpenKidsLessons = {
+        showKidsLessons = true
+        selectedKidsLessonId = null
+    }
+
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (maxWidth >= 700.dp && maxWidth > maxHeight) {
+            if (showKidsLessons) {
+                KidsLessonsScreen(
+                    lessons = kidsLessons,
+                    selectedLessonId = selectedKidsLessonId,
+                    progress = kidsProgress,
+                    onSelectLesson = { selectedKidsLessonId = it.id },
+                    onBackToGame = {
+                        showKidsLessons = false
+                        selectedKidsLessonId = null
+                    },
+                    onBackToList = { selectedKidsLessonId = null },
+                    onNextLesson = { selectedKidsLessonId = it.id },
+                )
+            } else if (maxWidth >= 700.dp && maxWidth > maxHeight) {
                 ExpandedGobangLayout(
                     game = displayedGame,
                     gameMode = gameMode,
@@ -196,6 +228,7 @@ fun GobangScreen() {
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onOpenKidsLessons = onOpenKidsLessons,
                     onGameModeChange = onGameModeChange,
                     onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
@@ -215,6 +248,7 @@ fun GobangScreen() {
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onOpenKidsLessons = onOpenKidsLessons,
                     onGameModeChange = onGameModeChange,
                     onDifficultyChange = onDifficultyChange,
                     onPreviousMove = { reviewMoveCount = currentReviewMoveCount - 1 },
@@ -301,6 +335,7 @@ private fun CompactGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onOpenKidsLessons: () -> Unit,
     onGameModeChange: (GameMode) -> Unit,
     onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
@@ -351,6 +386,7 @@ private fun CompactGobangLayout(
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onOpenKidsLessons = onOpenKidsLessons,
                     enabled = !isAiThinking,
                     modifier = Modifier.padding(top = 20.dp),
                 )
@@ -373,6 +409,7 @@ private fun ExpandedGobangLayout(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onOpenKidsLessons: () -> Unit,
     onGameModeChange: (GameMode) -> Unit,
     onDifficultyChange: (AiDifficulty) -> Unit,
     onPreviousMove: () -> Unit,
@@ -432,6 +469,7 @@ private fun ExpandedGobangLayout(
                     onUndo = onUndo,
                     onRestart = onRestart,
                     onStartReview = onStartReview,
+                    onOpenKidsLessons = onOpenKidsLessons,
                     enabled = !isAiThinking,
                 )
             }
@@ -584,6 +622,7 @@ private fun GameActions(
     onUndo: () -> Unit,
     onRestart: () -> Unit,
     onStartReview: () -> Unit,
+    onOpenKidsLessons: () -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -610,6 +649,36 @@ private fun GameActions(
             modifier = Modifier.padding(top = 8.dp).testTag("review_button"),
         ) {
             Text(stringResource(R.string.review))
+        }
+        Card(
+            onClick = onOpenKidsLessons,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+                .testTag("kids_lessons_button"),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            ),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("🎓", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = stringResource(R.string.kids_learning_entry),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.kids_learning_entry_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+            }
         }
     }
 }
@@ -702,12 +771,23 @@ internal fun GobangBoard(
     game: GobangGame,
     onPositionClick: (Position) -> Unit,
     isInteractive: Boolean = true,
+    showLastMove: Boolean = true,
+    highlightedPositions: Set<Position> = emptySet(),
+    hintPositions: Set<Position> = emptySet(),
+    highlightColor: Color = Color(0xFF1565C0),
+    hintColor: Color = Color(0xFF00897B),
+    boardDescriptionResource: Int? = null,
+    testTag: String = "gobang_board",
     modifier: Modifier = Modifier,
 ) {
     val boardDescription = stringResource(
-        if (isInteractive) R.string.board_description else R.string.review_board_description,
+        boardDescriptionResource ?: if (isInteractive) {
+            R.string.board_description
+        } else {
+            R.string.review_board_description
+        },
     )
-    val lastMove = game.moves.lastOrNull()
+    val lastMove = if (showLastMove) game.moves.lastOrNull() else null
     val moveHighlightProgress = remember { Animatable(1f) }
     LaunchedEffect(lastMove) {
         if (lastMove == null) {
@@ -727,7 +807,7 @@ internal fun GobangBoard(
             .clip(RoundedCornerShape(12.dp))
             .background(BoardColor)
             .semantics { contentDescription = boardDescription }
-            .testTag("gobang_board")
+            .testTag(testTag)
             .pointerInput(game, isInteractive) {
                 if (isInteractive) {
                     detectTapGestures { offset ->
@@ -744,6 +824,22 @@ internal fun GobangBoard(
         val gridStart = step
         val gridEnd = step * BOARD_SIZE
         val lineWidth = 1.dp.toPx()
+
+        fun drawMarker(position: Position, color: Color, withDot: Boolean) {
+            val center = Offset(
+                step * (position.column + 1),
+                step * (position.row + 1),
+            )
+            drawCircle(
+                color = color,
+                radius = step * 0.50f,
+                center = center,
+                style = Stroke(width = step * 0.07f),
+            )
+            if (withDot) {
+                drawCircle(color = color, radius = step * 0.10f, center = center)
+            }
+        }
 
         for (index in 0 until BOARD_SIZE) {
             val coordinate = step * (index + 1)
@@ -816,6 +912,13 @@ internal fun GobangBoard(
                     style = Stroke(width = step * 0.07f * (1f - progress)),
                 )
             }
+        }
+
+        highlightedPositions.forEach { position ->
+            drawMarker(position, highlightColor, withDot = false)
+        }
+        hintPositions.forEach { position ->
+            drawMarker(position, hintColor, withDot = true)
         }
     }
 }
