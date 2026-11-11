@@ -32,7 +32,9 @@ class KidsLessonsScreenTest {
         composeRule.onNodeWithText("第四站 · 开局布局").assertExists()
         composeRule.onNodeWithText("第五站 · 棋型进阶").assertExists()
         composeRule.onNodeWithText("第六站 · 连续与防守").assertExists()
-        composeRule.onNodeWithText("已通关 0 / 14 关", substring = true).assertExists()
+        composeRule.onNodeWithText("第七站 · 防守基本功").assertExists()
+        composeRule.onNodeWithText("第八站 · 棋型与判断").assertExists()
+        composeRule.onNodeWithText("已通关 0 / 20 关", substring = true).assertExists()
 
         kidsLessons.forEach { lesson ->
             composeRule.onNodeWithTag("kids_lesson_${lesson.id}").performScrollTo().assertExists()
@@ -57,7 +59,7 @@ class KidsLessonsScreenTest {
         composeRule.onNodeWithText("你学会了：活四").assertExists()
 
         composeRule.onNodeWithTag("kids_completion_back_button").performScrollTo().performClick()
-        composeRule.onNodeWithText("已通关 1 / 14 关", substring = true).assertExists()
+        composeRule.onNodeWithText("已通关 1 / 20 关", substring = true).assertExists()
         composeRule.onNodeWithTag("kids_lesson_make_open_four").performScrollTo().assertExists()
         composeRule.onNodeWithText("⭐ 已通关 · 再玩一次").assertExists()
     }
@@ -115,10 +117,30 @@ class KidsLessonsScreenTest {
     }
 
     @Test
+    fun defendOpenThreeLessonCompletes() {
+        setKidsContent()
+        openLesson("defend_open_three")
+
+        tapBoard(7, 5)
+        composeRule.onNodeWithTag("kids_completion_card").assertExists()
+        composeRule.onNodeWithText("你学会了：防活三").assertExists()
+    }
+
+    @Test
+    fun winBeforeBlockLessonCompletes() {
+        setKidsContent()
+        openLesson("win_before_block")
+
+        tapBoard(7, 9)
+        composeRule.onNodeWithTag("kids_completion_card").assertExists()
+        composeRule.onNodeWithText("你学会了：先赢").assertExists()
+    }
+
+    @Test
     fun lastLessonShowsAllCompleteOnlyWhenEveryLessonIsDone() {
         val previousLessons = kidsLessons.dropLast(1).map { it.id }.toSet()
         setKidsContent(progress = InMemoryKidsProgress(previousLessons))
-        openLesson("block_double_three")
+        openLesson("block_four_three")
 
         tapBoard(7, 7)
         composeRule.onNodeWithTag("kids_completion_card").assertExists()
@@ -139,7 +161,7 @@ class KidsLessonsScreenTest {
         composeRule.onNodeWithTag("kids_lesson_board").assertExists()
 
         composeRule.onNodeWithTag("kids_lesson_back_to_list_button").performScrollTo().performClick()
-        composeRule.onNodeWithText("已通关 1 / 14 关", substring = true).assertExists()
+        composeRule.onNodeWithText("已通关 1 / 20 关", substring = true).assertExists()
     }
 
     private fun setKidsContent(progress: KidsProgressStore = InMemoryKidsProgress()) {
