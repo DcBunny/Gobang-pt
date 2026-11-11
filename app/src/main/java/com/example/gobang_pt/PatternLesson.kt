@@ -27,6 +27,11 @@ data class PatternPosition(
         return copy(black = black + position)
     }
 
+    fun withWhite(position: Position): PatternPosition {
+        require(position.isValid && stoneAt(position) == null) { "Response must be an empty board point" }
+        return copy(white = white + position)
+    }
+
     fun toGobangGame(): GobangGame {
         val moves = black.map { Move(it, Stone.BLACK) } + white.map { Move(it, Stone.WHITE) }
         val board = List<Stone?>(BOARD_SIZE * BOARD_SIZE) { null }.toMutableList()
@@ -239,11 +244,11 @@ internal fun patternPoint(coordinate: String): Position {
     }
 }
 
-private fun patternPoints(notation: String): Set<Position> = notation.split(' ')
+internal fun patternPoints(notation: String): Set<Position> = notation.split(' ')
     .map(::patternPoint)
     .toSet()
 
-private fun patternPosition(black: String, white: String = "") = PatternPosition(
+internal fun patternPosition(black: String, white: String = "") = PatternPosition(
     black = patternPoints(black),
     white = if (white.isEmpty()) emptySet() else patternPoints(white),
 )

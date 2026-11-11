@@ -19,9 +19,7 @@ object GobangAi {
     private const val DOUBLE_FOUR_BONUS = 2_000_000
     private const val FOUR_THREE_BONUS = 1_000_000
     private const val DOUBLE_THREE_BONUS = 75_000
-    private const val LINE_RADIUS = 5
     private val directions = listOf(1 to 0, 0 to 1, 1 to 1, 1 to -1)
-    private val openThreeMasks = intArrayOf(0b001110, 0b010110, 0b011010)
 
     fun chooseMove(
         game: GobangGame,
@@ -221,7 +219,7 @@ object GobangAi {
         var openThreeDirections = 0
 
         directions.forEach { (rowDelta, columnDelta) ->
-            val pattern = analyzeDirection(board, position, stone, rowDelta, columnDelta)
+            val pattern = GobangShapes.analyze(board, position, stone, rowDelta, columnDelta)
             if (pattern.count >= 5) return FIVE_SCORE + centerBonus(position)
             val baseScore = patternScore(pattern.count, pattern.openEnds)
             score += when {
@@ -240,76 +238,6 @@ object GobangAi {
         if (openThreeDirections >= 2) score += DOUBLE_THREE_BONUS
         return score + centerBonus(position)
     }
-
-    private fun analyzeDirection(
-        board: List<Stone?>,
-        position: Position,
-        stone: Stone,
-        rowDelta: Int,
-        columnDelta: Int,
-    ): DirectionPattern {
-        val forward = connectedCount(board, position, stone, rowDelta, columnDelta)
-        val backward = connectedCount(board, position, stone, -rowDelta, -columnDelta)
-        val count = 1 + forward.count + backward.count
-        val openEnds = listOf(forward.end, backward.end).count { end ->
-            end.isValid && board[end.index] == null
-        }
-        var ownBits = 0
-        var emptyBits = 0
-        var validBits = 0
-
-        for (lineIndex in 0..LINE_RADIUS * 2) {
-            val offset = lineIndex - LINE_RADIUS
-            val current = Position(
-                position.row + rowDelta * offset,
-                position.column + columnDelta * offset,
-            )
-            if (!current.isValid) continue
-            val bit = 1 shl lineIndex
-            validBits = validBits or bit
-            val cell = if (offset == 0) stone else board[current.index]
-            if (cell == stone) ownBits = ownBits or bit
-            if (cell == null) emptyBits = emptyBits or bit
-        }
-
-        var winningPointBits = 0
-        var hasThree = false
-        for (start in 1..LINE_RADIUS) {
-            val windowMask = 0b11111 shl start
-            if (validBits and windowMask != windowMask) continue
-            val ownCount = (ownBits and windowMask).countOneBits()
-            val emptyCount = (emptyBits and windowMask).countOneBits()
-            if (ownCount == 4 && emptyCount == 1) {
-                winningPointBits = winningPointBits or (emptyBits and windowMask)
-            }
-            if (ownCount == 3 && emptyCount == 2) hasThree = true
-        }
-
-        val hasOpenThree = winningPointBits == 0 && (0..LINE_RADIUS).any { start ->
-            val windowMask = 0b111111 shl start
-            if (validBits and windowMask != windowMask) return@any false
-            val occupiedMask = (ownBits or emptyBits) and windowMask
-            occupiedMask == windowMask && openThreeMasks.any { mask ->
-                ownBits and windowMask == mask shl start
-            }
-        }
-
-        return DirectionPattern(
-            count = count,
-            openEnds = openEnds,
-            winningPoints = winningPointBits.countOneBits(),
-            hasOpenThree = hasOpenThree,
-            hasThree = hasThree,
-        )
-    }
-
-    private data class DirectionPattern(
-        val count: Int,
-        val openEnds: Int,
-        val winningPoints: Int,
-        val hasOpenThree: Boolean,
-        val hasThree: Boolean,
-    )
 
     private fun evaluateBoard(board: List<Stone?>, aiStone: Stone): Int {
         var score = 0

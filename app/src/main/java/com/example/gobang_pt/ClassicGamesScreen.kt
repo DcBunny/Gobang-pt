@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,14 +35,17 @@ import com.example.gobang_pt.ui.theme.GobangptTheme
 internal enum class LearningCategory {
     CLASSIC,
     PATTERNS,
+    LAYOUTS,
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LearningHomeScreen(
     selectedCategory: LearningCategory,
     onCategoryChange: (LearningCategory) -> Unit,
     onSelectGame: (ClassicGame) -> Unit,
     onSelectLesson: (PatternLesson) -> Unit,
+    onSelectLayoutLesson: (LayoutLesson) -> Unit,
     onBackToGame: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -73,7 +78,11 @@ internal fun LearningHomeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 FilterChip(
                     selected = selectedCategory == LearningCategory.CLASSIC,
                     onClick = { onCategoryChange(LearningCategory.CLASSIC) },
@@ -86,6 +95,12 @@ internal fun LearningHomeScreen(
                     label = { Text(stringResource(R.string.pattern_lessons)) },
                     modifier = Modifier.testTag("learning_patterns_category"),
                 )
+                FilterChip(
+                    selected = selectedCategory == LearningCategory.LAYOUTS,
+                    onClick = { onCategoryChange(LearningCategory.LAYOUTS) },
+                    label = { Text(stringResource(R.string.layout_lessons)) },
+                    modifier = Modifier.testTag("learning_layouts_category"),
+                )
             }
             when (selectedCategory) {
                 LearningCategory.CLASSIC -> classicGames.forEach { game ->
@@ -96,6 +111,7 @@ internal fun LearningHomeScreen(
                     )
                 }
                 LearningCategory.PATTERNS -> PatternLessonList(onSelectLesson = onSelectLesson)
+                LearningCategory.LAYOUTS -> LayoutLessonList(onSelectLesson = onSelectLayoutLesson)
             }
         }
     }
@@ -359,6 +375,7 @@ private fun LearningHomePreview() {
             onCategoryChange = {},
             onSelectGame = {},
             onSelectLesson = {},
+            onSelectLayoutLesson = {},
             onBackToGame = {},
         )
     }

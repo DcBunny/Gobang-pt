@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import org.junit.Rule
 import org.junit.Test
@@ -267,40 +268,30 @@ class GobangScreenTest {
     }
 
     @Test
-    fun patternPracticeHandlesWrongAndMultipleAnswersAndSurvivesRotation() {
+    fun patternLessonUsesReadOnlyPlaybackAndSurvivesRotation() {
         tapIntersection(7, 7)
         composeRule.onNodeWithTag("learning_home_button").performClick()
         composeRule.onNodeWithTag("learning_patterns_category").performClick()
         composeRule.onNodeWithTag("pattern_lesson_open_four").performClick()
-        composeRule.onNodeWithTag("pattern_start_practice_button").performClick()
-        composeRule.onNodeWithText("已找到 0/2 个要点").assertExists()
+        composeRule.onNodeWithText("演示进度 1/3").assertExists()
+        composeRule.onNodeWithTag("previous_move_button").assertIsNotEnabled()
 
         tapIntersection(0, 0)
-        composeRule.onNodeWithTag("pattern_wrong_answer").assertExists()
-        composeRule.onNodeWithText("已找到 0/2 个要点").assertExists()
-        tapIntersection(4, 4)
-        composeRule.onNodeWithText("已找到 1/2 个要点").assertExists()
-        composeRule.onNodeWithTag("pattern_practice_complete").assertDoesNotExist()
+        composeRule.onNodeWithText("演示进度 1/3").assertExists()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithText("演示进度 2/3").assertExists()
 
         composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("已找到 1/2 个要点").assertExists()
-        tapIntersection(9, 9)
-        composeRule.onNodeWithText("已找到 2/2 个要点").assertExists()
-        composeRule.onNodeWithTag("pattern_practice_complete").assertExists()
-        composeRule.onNodeWithTag("pattern_next_lesson_button").assertIsEnabled()
+        composeRule.onNodeWithText("演示进度 2/3").assertExists()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithText("演示进度 3/3").assertExists()
+        composeRule.onNodeWithTag("next_move_button").assertIsNotEnabled()
+        composeRule.onNodeWithText("标准答案 · E5").assertExists()
 
-        composeRule.onNodeWithTag("pattern_reset_button").performClick()
-        composeRule.onNodeWithText("已找到 0/2 个要点").assertExists()
-        composeRule.onNodeWithTag("pattern_practice_complete").assertDoesNotExist()
-        composeRule.onNodeWithTag("pattern_next_lesson_button").assertIsNotEnabled()
-        tapIntersection(4, 4)
-        tapIntersection(9, 9)
-        composeRule.onNodeWithTag("pattern_next_lesson_button").performClick()
-        composeRule.onNodeWithText("冲四").assertExists()
-        composeRule.onNodeWithTag("pattern_start_practice_button").assertExists()
-
-        composeRule.onNodeWithTag("pattern_back_to_list_button").performClick()
+        composeRule.onNodeWithTag("previous_move_button").performClick()
+        composeRule.onNodeWithText("演示进度 2/3").assertExists()
+        composeRule.onNodeWithTag("lesson_back_to_list_button").performClick()
         composeRule.onNodeWithTag("learning_patterns_category").assertIsSelected()
         composeRule.onNodeWithTag("learning_back_button").performClick()
         composeRule.onNodeWithText("已落子 1 手").assertExists()
@@ -308,23 +299,154 @@ class GobangScreenTest {
     }
 
     @Test
-    fun singleAnswerPracticeCanRevisitExampleWithoutLosingCompletion() {
+    fun layoutLessonPlaysBothSidesAndCompletesFiveAfterRotation() {
+        tapIntersection(7, 7)
         composeRule.onNodeWithTag("learning_home_button").performClick()
-        composeRule.onNodeWithTag("learning_patterns_category").performClick()
-        composeRule.onNodeWithTag("pattern_lesson_closed_four").performClick()
-        composeRule.onNodeWithTag("pattern_start_practice_button").performClick()
+        composeRule.onNodeWithTag("learning_layouts_category").performClick()
+        composeRule.onNodeWithTag("layout_lesson_center_development").performClick()
+        val playback = layoutLessons.first().toPlayback()
+        composeRule.onNodeWithText("演示进度 1/${playback.frames.size}").assertExists()
+        composeRule.onNodeWithTag("previous_move_button").assertIsNotEnabled()
 
-        tapIntersection(7, 8)
-        composeRule.onNodeWithText("已找到 1/1 个要点").assertExists()
-        composeRule.onNodeWithTag("pattern_practice_complete").assertExists()
-        composeRule.onNodeWithTag("pattern_show_example_button").performClick()
-        composeRule.onNodeWithTag("pattern_start_practice_button").assertExists()
-        composeRule.onNodeWithTag("pattern_start_practice_button").performClick()
-        composeRule.onNodeWithTag("pattern_practice_complete").assertExists()
+        tapIntersection(0, 0)
+        composeRule.onNodeWithText("演示进度 1/${playback.frames.size}").assertExists()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithText("黑方 · H8").assertExists()
+        composeRule.onNodeWithTag("next_move_button").performClick()
+        composeRule.onNodeWithText("白方 · G7").assertExists()
 
-        composeRule.onNodeWithTag("pattern_back_to_list_button").performClick()
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("演示进度 3/${playback.frames.size}").assertExists()
+        composeRule.onNodeWithTag("previous_move_button").performClick()
+        composeRule.onNodeWithText("演示进度 2/${playback.frames.size}").assertExists()
+        repeat(playback.frames.lastIndex - 1) {
+            composeRule.onNodeWithTag("next_move_button").performClick()
+        }
+        composeRule.onNodeWithText("演示进度 ${playback.frames.size}/${playback.frames.size}")
+            .assertExists()
+        composeRule.onNodeWithText("黑方 · F8 · 五连").assertExists()
+        composeRule.onNodeWithTag("next_move_button").assertIsNotEnabled()
+        composeRule.onNodeWithTag("lesson_start_practice_button").assertExists()
+
+        composeRule.onNodeWithTag("lesson_back_to_list_button").performClick()
+        composeRule.onNodeWithTag("learning_layouts_category").assertIsSelected()
         composeRule.onNodeWithTag("learning_back_button").performClick()
+        composeRule.onNodeWithText("已落子 1 手").assertExists()
+        composeRule.onNodeWithText("轮到白方落子").assertExists()
+    }
+
+    @Test
+    fun connectedDiagonalsLessonAutomaticallyPlaysAWinningPoint() {
+        composeRule.onNodeWithTag("learning_home_button").performClick()
+        composeRule.onNodeWithTag("learning_layouts_category").performClick()
+        composeRule.onNodeWithTag("layout_lesson_connected_diagonals").performClick()
+        val playback = layoutLessons.first { it.id == "connected_diagonals" }.toPlayback()
+        repeat(playback.frames.lastIndex) {
+            composeRule.onNodeWithTag("next_move_button").performClick()
+        }
+
+        composeRule.onNodeWithText("黑方 · J6 · 五连").assertExists()
+        composeRule.onNodeWithTag("next_move_button").assertIsNotEnabled()
+    }
+
+    @Test
+    fun namedFormationLessonsAreListedAndTurtleDemoCanEnterPractice() {
+        composeRule.onNodeWithTag("learning_home_button").performClick()
+        composeRule.onNodeWithTag("learning_layouts_category").performClick()
+        listOf(
+            "turtle_formation",
+            "lightning_formation",
+            "lobster_formation",
+            "moon_formation",
+            "sword_formation",
+            "sickle_formation",
+        ).forEach { id ->
+            composeRule.onNodeWithTag("layout_lesson_$id").performScrollTo().assertExists()
+        }
+
+        composeRule.onNodeWithTag("layout_lesson_turtle_formation").performScrollTo().performClick()
+        composeRule.onNodeWithText("乌龟阵：稳守反击").assertExists()
+        val playback = layoutLessons.first { it.id == "turtle_formation" }.toPlayback()
+        repeat(playback.frames.lastIndex) {
+            composeRule.onNodeWithTag("next_move_button").performClick()
+        }
+        composeRule.onNodeWithText("黑方 · E4 · 五连").assertExists()
+
+        composeRule.onNodeWithTag("lesson_start_practice_button").performClick()
+        composeRule.onNodeWithText("乌龟阵：稳守反击").assertExists()
         composeRule.onNodeWithText("已落子 0 手").assertExists()
+        composeRule.onNodeWithTag("practice_hint_button").assertIsEnabled()
+    }
+
+    @Test
+    fun practiceAllowsFreeMovesUndoRestartAndRotationDuringAiTurn() {
+        openFirstPractice()
+        tapIntersection(0, 0)
+        waitForMoveCount(2)
+        composeRule.onNodeWithTag("practice_hint_button").performClick()
+        composeRule.onNodeWithTag("practice_hint_text").assertExists()
+
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+        composeRule.onNodeWithTag("practice_hint_text").assertExists()
+        composeRule.onNodeWithTag("practice_undo_button").performClick()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+
+        tapLayoutMove("h8")
+        composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        composeRule.waitForIdle()
+        waitForMoveCount(2)
+        composeRule.onNodeWithText("已落子 2 手").assertExists()
+        composeRule.onNodeWithTag("practice_restart_button").performClick()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+        composeRule.onNodeWithTag("practice_back_to_layout_button").performClick()
+        composeRule.onNodeWithTag("lesson_start_practice_button").assertExists()
+    }
+
+    @Test
+    fun practiceCoachCanGuidePlayerToRealVictory() {
+        openFirstPractice()
+        val scenario = practiceScenarios.first()
+        var game = scenario.newGame()
+        var rounds = 0
+        while (!game.isOver && rounds < 80) {
+            val recommendation = requireNotNull(PracticeCoach.recommend(scenario, game))
+            tapIntersection(recommendation.move.row, recommendation.move.column)
+            game = game.play(recommendation.move)
+            waitForMoveCount(game.moves.size)
+
+            if (!game.isOver && game.currentPlayer == Stone.WHITE) {
+                val whiteMove = requireNotNull(scenario.chooseWhiteMove(game))
+                waitForMoveCount(game.moves.size + 1)
+                game = game.play(whiteMove)
+            }
+            rounds++
+        }
+
+        check(game.winner == Stone.BLACK) { "Coach did not win: ${scenario.encode(game)}" }
+        composeRule.onNodeWithText("实战完成，黑方获胜！").assertExists()
+        composeRule.onNodeWithTag("practice_goal_FIVE").assertExists()
+        composeRule.onNodeWithTag("practice_next_button").performClick()
+        composeRule.onNodeWithText("双线连接：双三转为活四").assertExists()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+    }
+
+    private fun openFirstPractice() {
+        composeRule.onNodeWithTag("learning_home_button").performClick()
+        composeRule.onNodeWithTag("learning_layouts_category").performClick()
+        composeRule.onNodeWithTag("layout_lesson_center_development").performClick()
+        repeat(layoutLessons.first().toPlayback().frames.lastIndex) {
+            composeRule.onNodeWithTag("next_move_button").performClick()
+        }
+        composeRule.onNodeWithTag("lesson_start_practice_button").performClick()
+        composeRule.onNodeWithText("已落子 0 手").assertExists()
+    }
+
+    private fun tapLayoutMove(coordinate: String) {
+        val position = patternPoint(coordinate)
+        tapIntersection(position.row, position.column)
     }
 
     private fun waitForMoveCount(moveCount: Int) {
